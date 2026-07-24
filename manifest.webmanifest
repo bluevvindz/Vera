@@ -1,0 +1,28 @@
+{
+ "name": "V.E.R.A. \u2014 Virtual Execution & Response Assistant",
+ "short_name": "V.E.R.A.",
+ "id": "/",
+ "start_url": "/reactor.html?demo=1",
+ "display": "standalone",
+ "background_color": "#02060c",
+ "theme_color": "#02060c",
+ "description": "A real AI steward with a live brain \u2014 talk to her.",
+ "icons": [
+  {
+   "src": "icons/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icons/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "icons/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}
