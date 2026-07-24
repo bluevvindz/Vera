@@ -85,10 +85,11 @@
     #hub-log .hub-line:first-child { color: #cfe4ec; }
 
     @media (max-width: 900px) {
-      #hub-dock { top: auto; bottom: 152px; left: 8px; right: 8px; width: auto;
+      #hub-dock { top: auto; bottom: 78px; left: 8px; right: 8px; width: auto;
         flex-direction: row; overflow-x: auto; pointer-events: auto;
-        -webkit-overflow-scrolling: touch; }
-      .hub-panel { min-width: 212px; flex: 0 0 auto; } }`;
+        -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+      .hub-panel { min-width: 236px; flex: 0 0 auto; scroll-snap-align: start;
+        backdrop-filter: none; background: rgba(5, 14, 23, 0.95); } }`;
   document.head.appendChild(css);
 
   const dock = document.createElement('div');
@@ -360,13 +361,14 @@
     show(name) {
       if (document.getElementById('hub-' + name)) return;  // already on stage
       const act = ACTS[name];
-      if (act) act();
+      if (act) { act(); document.body.classList.add('hub-on'); }  // phones re-zone around the hub
     },
     reset() {
       timers.splice(0).forEach(clearInterval);
       if (raf) cancelAnimationFrame(raf);
       raf = null; logBody = null;
       dock.replaceChildren();
+      document.body.classList.remove('hub-on');
     },
     dissolve() {
       // The stage, not the cockpit: panels are a performance, and when the

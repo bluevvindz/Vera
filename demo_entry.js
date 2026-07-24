@@ -65,7 +65,10 @@
       text-transform: uppercase; cursor: pointer; margin-top: 6px;
       text-decoration: underline; text-underline-offset: 4px; }
     @keyframes g-pulse { 0%, 100% { filter: brightness(0.92); }
-      50% { filter: brightness(1.15); } }`;
+      50% { filter: brightness(1.15); } }
+    @media (max-width: 640px) {
+      #vera-gate { backdrop-filter: none; background: rgba(2, 6, 12, 0.95); }
+      #vera-gate .g-hint { font-size: 11px; max-width: 86vw; } }`;
   document.head.appendChild(css);
 
   const gate = document.createElement('div');

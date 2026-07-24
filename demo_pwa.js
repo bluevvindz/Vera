@@ -10,6 +10,10 @@
 
   // Already running as an installed app? Nothing to sell.
   if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) return;
+  // Phone screens with a talk bar have no room for the chip — the browser
+  // menu still offers Install; the landing page keeps the chip everywhere.
+  if (matchMedia('(max-width: 640px)').matches
+    && (document.getElementById('demo-talk') || document.getElementById('map-talk'))) return;
 
   const css = document.createElement('style');
   css.textContent = `

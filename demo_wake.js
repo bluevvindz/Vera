@@ -21,6 +21,11 @@
           font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase;
           padding: 8px 20px; cursor: pointer; backdrop-filter: blur(8px); }
         #wake-chip.armed { animation: wake-pulse 2.2s ease-in-out infinite; }
+        @media (max-width: 640px) {
+          #wake-chip { top: 42px; font-size: 10px; letter-spacing: 0.16em;
+            padding: 6px 12px; max-width: 76vw; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; backdrop-filter: none;
+            background: rgba(8, 22, 34, 0.95); } }
         @keyframes wake-pulse {
           0%, 100% { box-shadow: 0 0 12px rgba(63,217,255,0.25); }
           50% { box-shadow: 0 0 30px rgba(63,217,255,0.6); } }`;

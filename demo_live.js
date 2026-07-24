@@ -45,7 +45,11 @@
     #demo-talk .rec { border-color: #3fffc2 !important; color: #3fffc2 !important;
       animation: mic-live 1.1s ease-in-out infinite; }
     @keyframes mic-live { 0%, 100% { box-shadow: 0 0 6px rgba(63,255,194,0.35); }
-      50% { box-shadow: 0 0 22px rgba(63,255,194,0.8); } }`;
+      50% { box-shadow: 0 0 22px rgba(63,255,194,0.8); } }
+    @media (max-width: 640px) {
+      #demo-talk { bottom: 10px; width: calc(100vw - 20px); backdrop-filter: none;
+        background: rgba(6, 16, 26, 0.96); }
+      #demo-talk button { padding: 6px 9px; letter-spacing: 0.1em; } }`;
   document.head.appendChild(css);
 
   /* ---- browser voice out (free) ---- */
@@ -130,10 +134,11 @@
     if (hinted) return;
     hinted = true;
     const h = document.createElement('div');
-    h.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:142px;' +
+    const pos = matchMedia('(max-width: 640px)').matches ? 'top:76px' : 'bottom:142px';
+    h.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);' + pos + ';' +
       'z-index:6;font-family:Rajdhani,sans-serif;font-size:11px;letter-spacing:0.18em;' +
       'color:rgba(127,184,204,0.8);background:rgba(8,22,34,0.88);padding:5px 14px;' +
-      'border-radius:999px;border:1px solid rgba(63,217,255,0.25)';
+      'border-radius:999px;border:1px solid rgba(63,217,255,0.25);max-width:88vw';
     h.textContent = /android/i.test(navigator.userAgent)
       ? 'TEXT MODE ON THIS DEVICE — HER SCRIPTED LINES STILL PLAY IN FULL VOICE'
       : 'TEXT MODE — FOR HER FULL VOICE ON LIVE REPLIES, OPEN IN MICROSOFT EDGE';
@@ -453,6 +458,19 @@
         else then();
       } })
     : null;
+
+  // Weak networks stutter mid-line when audio streams as it plays. Pull her
+  // whole voice track into the local cache once, gently, right after entry —
+  // then every scripted line plays from disk, signal or no signal.
+  if (window.VERA_VOICE && window.VERA_ENTRY) {
+    const srcs = Object.values(window.VERA_VOICE);
+    let pi = 0;
+    const pull = () => {
+      if (pi >= srcs.length) return;
+      fetch(srcs[pi++], { cache: 'force-cache' }).catch(() => {}).finally(() => setTimeout(pull, 150));
+    };
+    window.VERA_ENTRY.onDone(() => setTimeout(pull, 1200));
+  }
 
   // A returning Seed-holder is KNOWN: prime her memory invisibly so the live
   // brain greets them as a person, not a stranger. Never rendered on screen.

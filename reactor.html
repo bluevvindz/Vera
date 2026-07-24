@@ -145,6 +145,27 @@
            background: var(--cyan); height: 1em; vertical-align: -2px;
            animation: blink 0.85s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
+
+  /* Phones: one clean vertical stack, no overlaps, no blur, less chrome.
+     Zones bottom-up: input bar (10) → hub row (64) → transcript (64/246). */
+  @media (max-width: 640px) {
+    .bracket { display: none; }
+    .corner { font-size: 10px; letter-spacing: 0.18em; }
+    #c-tl { top: 12px; left: 12px; }
+    #c-tr { top: 12px; right: 12px; }
+    #c-tl .sub, #c-tr .sub { display: none; }
+    #c-br { display: none; }
+    #nav-map { top: 74px; left: 12px; font-size: 10px; padding: 3px 9px; }
+    #status { font-size: 14px; letter-spacing: 0.4em; text-indent: 0.4em; }
+    #status-sub { display: none; }
+    #status-wrap { top: auto; bottom: 280px; }
+    body.hub-on #status-wrap { display: none; }  /* the narration IS the status */
+    #cards { top: 104px; right: 12px; left: 12px; bottom: auto; width: auto; }
+    #cards .card:not(:last-child) { display: none; }
+    .card { backdrop-filter: none; background: rgba(6, 16, 26, 0.94); }
+    #transcript { left: 12px; right: 12px; width: auto; bottom: 78px; max-height: 24vh; }
+    body.hub-on #transcript { bottom: 250px; max-height: 16vh; }
+  }
 </style>
 </head>
 <body>
@@ -197,9 +218,11 @@ function setMode(name) {
 const canvas = document.getElementById('reactor');
 const ctx = canvas.getContext('2d');
 let W = 0, H = 0, DPR = 1;
+const SMALL = matchMedia('(max-width: 640px)');
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+  // Phones get native resolution + half frame-rate: fluid beats crisp there.
+  DPR = Math.min(window.devicePixelRatio || 1, SMALL.matches ? 1 : 1.5);
   W = canvas.width = Math.floor(innerWidth * DPR);
   H = canvas.height = Math.floor(innerHeight * DPR);
   canvas.style.width = innerWidth + 'px';
@@ -222,9 +245,16 @@ const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
 
 // Rotation phase is the integral of eased speed over time — multiplying
 // absolute time by a changing speed makes the dashes strobe on transitions.
-let phase = 0, lastNow = 0;
+let phase = 0, lastNow = 0, frameGate = 0;
 
 function draw(now) {
+  if (document.hidden) {  // background tab: stop burning the battery
+    lastNow = 0;
+    setTimeout(() => requestAnimationFrame(draw), 400);
+    return;
+  }
+  if (SMALL.matches && now - frameGate < 30) { requestAnimationFrame(draw); return; }
+  frameGate = now;
   const m = MODES[mode];
   if (!lastNow) lastNow = now;
   phase += (now - lastNow) * cur.speed;
