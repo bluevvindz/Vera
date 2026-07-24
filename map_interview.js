@@ -50,6 +50,7 @@
   const loadVoices = () => { voices = speechSynthesis.getVoices(); };
   loadVoices();
   if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
+  let currentAudio = null;
   function say(text, onDone) {
     qEl.textContent = text;
     qEl.style.display = 'block';
@@ -61,14 +62,30 @@
       jstate = 'listening';
       if (onDone) onDone();
     };
-    // Watchdog: browsers can block or drop speech silently — the interview
-    // must advance regardless of whether the voice actually played.
-    setTimeout(finish, Math.max(3500, text.length * 75));
+    // Watchdog: audio/speech can be blocked silently — always advance.
+    setTimeout(finish, Math.max(4000, text.length * 80));
+
+    // Scripted lines ship as pre-baked neural MP3s (her REAL voice).
+    const src = (window.VERA_VOICE || {})[text];
+    if (src) {
+      try {
+        if (currentAudio) currentAudio.pause();
+        currentAudio = new Audio(src);
+        currentAudio.onended = currentAudio.onerror = finish;
+        currentAudio.play().catch(() => speakBrowser(text, finish));
+        return;
+      } catch { /* fall through */ }
+    }
+    speakBrowser(text, finish);
+  }
+  function speakBrowser(text, finish) {
     try {
+      const vs = speechSynthesis.getVoices();  // fresh — never trust the cache
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      const v = voices.find(v => /en-GB/i.test(v.lang) && /sonia|libby|hazel|maisie|female/i.test(v.name))
-        || voices.find(v => /en-GB/i.test(v.lang)) || null;
+      const v = vs.find(x => /en-GB/i.test(x.lang) && /sonia|libby|hazel|maisie|female|natural/i.test(x.name))
+        || vs.find(x => /en-GB/i.test(x.lang) && /google/i.test(x.name))
+        || vs.find(x => /en-GB/i.test(x.lang)) || null;
       if (v) u.voice = v;
       u.rate = 1.04;
       u.onend = u.onerror = finish;
@@ -80,7 +97,7 @@
   const steps = [
     { q: 'First — what shall I call you?', handle(ans, name) {
         window.MAP_API.relabel('you', `${name}'s Brain`);
-        return `A pleasure, ${name}.`; } },
+        return 'A pleasure. Do go on.'; } },
     { q: 'What do you do for work?', handle(ans) {
         window.MAP_API.add('work', ans, 'business', ['you']);
         return 'A noble trade — filed.'; } },
@@ -107,7 +124,7 @@
   function finale() {
     bar.style.display = 'none';
     window.MAP_API.focus('you');
-    say(`There, ${name} — the seed of your second brain, built as we spoke. It lives only in this tab and vanishes when you leave. The production system grows one of these from every conversation… and never forgets.`,
+    say('And there it is — the seed of your second brain, built as we spoke. It lives only in this tab and vanishes when you leave. The production system grows one of these from every conversation… and never forgets.',
       () => { jstate = 'idle'; });
   }
 

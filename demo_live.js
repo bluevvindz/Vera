@@ -50,17 +50,35 @@
   const loadVoices = () => { voices = speechSynthesis.getVoices(); };
   loadVoices();
   if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
+  let currentAudio = null;
   function speakAloud(text, onDone) {
+    const finish = () => onDone && onDone();
+    // Pre-baked neural MP3 for scripted lines — her real voice.
+    const src = (window.VERA_VOICE || {})[text];
+    if (src) {
+      try {
+        if (currentAudio) currentAudio.pause();
+        currentAudio = new Audio(src);
+        currentAudio.onended = currentAudio.onerror = finish;
+        currentAudio.play().catch(() => browserSpeak(text, finish));
+        return;
+      } catch { /* fall through */ }
+    }
+    browserSpeak(text, finish);
+  }
+  function browserSpeak(text, finish) {
     try {
-      speechSynthesis.cancel();
+      const vs = speechSynthesis.getVoices();  // fresh at call time — the cached
+      speechSynthesis.cancel();                // list races and falls back to David
       const u = new SpeechSynthesisUtterance(text);
-      const v = voices.find(v => /en-GB/i.test(v.lang) && /sonia|libby|hazel|maisie|female/i.test(v.name))
-        || voices.find(v => /en-GB/i.test(v.lang)) || null;
+      const v = vs.find(x => /en-GB/i.test(x.lang) && /sonia|libby|hazel|maisie|female|natural/i.test(x.name))
+        || vs.find(x => /en-GB/i.test(x.lang) && /google/i.test(x.name))
+        || vs.find(x => /en-GB/i.test(x.lang)) || null;
       if (v) u.voice = v;
       u.rate = 1.04; u.pitch = 1.0;
-      u.onend = u.onerror = () => onDone && onDone();
+      u.onend = u.onerror = finish;
       speechSynthesis.speak(u);
-    } catch { onDone && onDone(); }
+    } catch { finish(); }
   }
 
   // The scripted reel (page script) speaks through this — respecting the toggle.
