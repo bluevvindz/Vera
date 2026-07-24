@@ -157,7 +157,9 @@
     };
     try {
       stopAudio();
-      currentAudio = new Audio('data:audio/mpeg;base64,' + b64audio);
+      // The worker's engines return WAV (RIFF → 'UklGR') or MP3 — sniff it.
+      const mime = b64audio.startsWith('UklGR') ? 'audio/wav' : 'audio/mpeg';
+      currentAudio = new Audio('data:' + mime + ';base64,' + b64audio);
       currentFinish = finish;
       currentAudio.onended = currentAudio.onerror = finish;
       currentAudio.play().catch(finish);
@@ -165,15 +167,18 @@
   }
   async function speakReply(text, onDone) {
     if (API) {
-      try {
-        const r = await fetch(API + '/speak', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ text }),
-        });
-        const d = await r.json();
-        if (r.ok && d.audio) { playB64(d.audio, text, onDone); return; }
-      } catch { /* fall through */ }
+      for (let attempt = 0; attempt < 2; attempt++) {  // synth cold-starts flake once
+        try {
+          const r = await fetch(API + '/speak', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          const d = await r.json();
+          if (r.ok && d.audio) { playB64(d.audio, text, onDone); return; }
+        } catch { /* retry, then fall through */ }
+        await new Promise(res => setTimeout(res, 350));
+      }
     }
     speakAloud(text, onDone);
   }
@@ -406,6 +411,7 @@
     setMode('speaking');
     addLine('jarvis', d.reply);
     if (d.audio && soundOn) playB64(d.audio, d.reply, resume);
+    else if (soundOn) speakReply(d.reply, resume);  // server synth flaked — one more try
     else resume();
   }
 
