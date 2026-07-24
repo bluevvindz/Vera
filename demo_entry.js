@@ -73,12 +73,19 @@
 
   const gate = document.createElement('div');
   gate.id = 'vera-gate';
+  // Honest per-device promises: iPhones and Firefox have no name-listening at
+  // all (WebKit/Gecko ship no speech recognition) — never promise "say Vera".
+  const hasSR = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const how = hasSR
+    ? 'Sound on, mic on — then just say “Vera” out loud, any time.'
+    : 'Sound on — tap the mic any time to speak with her.';
   gate.innerHTML = `
     <div class="g-title">DEMO MODE</div>
     <div class="g-sub">She speaks — and she listens</div>
     <button class="g-voice" type="button">🔊 Enter with voice</button>
-    <div class="g-hint">Sound on, mic on — then just say “Vera” out loud, any time.<br>
-      Your browser will ask to use the microphone; that is the always-listening part.</div>
+    <div class="g-hint">${how}<br>
+      Your browser asks for the microphone once. After the show, install her
+      for the smoothest repeat runs.</div>
     <button class="g-mute" type="button">enter muted</button>`;
   document.body.appendChild(gate);
   if (window.VERA_SEED)  // returning Seed-holder: she remembers (textContent — never markup)

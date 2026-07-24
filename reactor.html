@@ -146,6 +146,15 @@
            animation: blink 0.85s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
 
+  #demo-blink {
+    position: fixed; left: 50%; top: 44%; transform: translate(-50%, -50%);
+    z-index: 3; display: none; pointer-events: none;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.5em; text-indent: 0.5em;
+    color: rgba(235, 250, 255, 0.92); text-shadow: 0 0 14px rgba(63, 217, 255, 0.8);
+    animation: demo-blink 1.6s steps(2) infinite;
+  }
+  @keyframes demo-blink { 50% { opacity: 0.15; } }
+
   /* Phones: one clean vertical stack, no overlaps, no blur, less chrome.
      Zones bottom-up: input bar (10) → hub row (64) → transcript (64/246). */
   @media (max-width: 640px) {
@@ -187,6 +196,7 @@
 </div>
 
 <div id="transcript"></div>
+<div id="demo-blink">DEMO</div>
 
 <script>
 'use strict';
@@ -543,7 +553,10 @@ function runDemo() {
   ];
   let i = 0;
   let reelStopped = false;
-  window.VERA_REEL_STOP = () => { reelStopped = true; };
+  const blink = document.getElementById('demo-blink');
+  blink.style.display = 'block';  // an honest pulse at her core: this is the show
+  const endBlink = () => { blink.style.display = 'none'; };
+  window.VERA_REEL_STOP = () => { reelStopped = true; endBlink(); };
   const next = () => {
     const [wait, fn] = steps[i];
     setTimeout(async () => {
@@ -551,7 +564,7 @@ function runDemo() {
       try { await fn(); } catch {}
       if (reelStopped) return;
       i++;
-      if (i >= steps.length) return;  // one performance — the hub stays on stage
+      if (i >= steps.length) { endBlink(); return; }  // show over: the stage is live
       next();
     }, wait);
   };

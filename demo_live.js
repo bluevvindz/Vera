@@ -125,14 +125,13 @@
       const vs = speechSynthesis.getVoices();
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      // Neural voices only (Edge, Safari, Android's default). Desktop Chrome
-      // ships none, and a cold robotic stand-in is worse than text — scripted
-      // lines stay MP3 regardless.
-      const android = /android/i.test(navigator.userAgent);
+      // ONE consistency rule: only a voice that matches her recordings may
+      // speak (Edge's neural British set). Anything else — Samantha, Google,
+      // Android defaults — reads as a stranger, so text beats it. The worker's
+      // /speak covers live replies everywhere anyway; this is a rare fallback.
       const en = vs.filter(x => /^en/i.test(x.lang) && !/\bmale\b/i.test(x.name));
       const v = en.find(x => /online|natural|neural/i.test(x.name) && /sonia|libby|maisie|female|aria|jenny|emma|ava|michelle/i.test(x.name))
-        || en.find(x => /samantha|karen|moira|tessa|fiona/i.test(x.name))
-        || (android ? (en.find(x => x.default) || en[0] || null) : null);
+        || null;
       if (!v) { voiceHint(); finish(); return; }
       u.voice = v;
       u.rate = 1.04; u.pitch = 1.0;
@@ -373,21 +372,32 @@
     return buf;
   }
 
+  let recStream = null, recCtx = null, recSrcNode = null;
+  async function ensureEars() {
+    // Permission is a ONE-TIME toll: keep the stream and context alive for
+    // the whole visit. A fresh getUserMedia per capture makes iOS re-prompt
+    // every single time — the "permissions over and over" misery.
+    if (recStream && recStream.getTracks().some(t => t.readyState === 'live')) return true;
+    try { recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { recStream = null; return false; }
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!recCtx) recCtx = new Ctx();
+    recSrcNode = recCtx.createMediaStreamSource(recStream);
+    return true;
+  }
+
   async function recToggle(auto) {
     if (busy) return;
     if (recording) { recordFinish(); return; }
+    const tc = document.getElementById('talk-chip');
+    if (tc) tc.remove();
     takeover();
     if (wake) { wakeToken++; wake.pause(); }
-    let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch { if (captureOnce) captureOnce(); return; }
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new Ctx();
-    if (ctx.state === 'suspended') { try { await ctx.resume(); } catch {} }  // iOS Safari starts suspended
-    const src = ctx.createMediaStreamSource(stream);
-    const node = ctx.createScriptProcessor(4096, 1, 1);
+    if (!(await ensureEars())) { if (captureOnce) captureOnce(); return; }
+    if (recCtx.state === 'suspended') { try { await recCtx.resume(); } catch {} }  // iOS starts suspended
+    const node = recCtx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
-    const rec = { stream, ctx, node, chunks, rate: ctx.sampleRate,
+    const rec = { node, chunks, rate: recCtx.sampleRate,
       auto: !!auto, spoke: false, quietMs: 0,
       timer: setTimeout(recordFinish, 12000) };
     node.onaudioprocess = e => {
@@ -404,7 +414,7 @@
       else rec.quietMs += frameMs;
       if ((rec.spoke && rec.quietMs > 1300) || (!rec.spoke && rec.quietMs > 5000)) recordFinish();
     };
-    src.connect(node); node.connect(ctx.destination);
+    recSrcNode.connect(node); node.connect(recCtx.destination);
     recording = rec;
     mic.classList.add('rec');
     mic.textContent = auto ? '◉ LISTENING' : '◉ TAP WHEN DONE';
@@ -419,10 +429,9 @@
     const r = recording;
     recording = null;
     clearTimeout(r.timer);
+    try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
-    try { r.ctx.close(); } catch {}
-    r.stream.getTracks().forEach(t => { try { t.stop(); } catch {} });
-    micIdle();
+    micIdle();  // stream and context stay warm: no re-prompt, ever
     let total = 0; for (const c of r.chunks) total += c.length;
     if ((r.auto && !r.spoke) || total < r.rate * 0.4) {
       setMode('idle');
@@ -544,6 +553,25 @@
       { role: 'user', content: `(Private context — never quote it verbatim: I'm ${s.name}, a returning visitor. My seed map: ${facts || 'just planted'}. Greet me by name when I engage.)` },
       { role: 'assistant', content: 'Noted with pleasure.' },
     );
+  }
+
+  // Devices without browser speech recognition (every iPhone browser,
+  // Firefox) have NO wake word — say so plainly, or visitors talk into the
+  // void saying "Hey Vera" to a page that cannot hear names.
+  if (!SR && canRecord && window.VERA_ENTRY) {
+    window.VERA_ENTRY.onDone(voice => {
+      if (!voice || document.getElementById('talk-chip')) return;
+      const c = document.createElement('button');
+      c.id = 'talk-chip'; c.type = 'button';
+      c.textContent = '◉ Tap the mic below to talk to her';
+      c.style.cssText = 'position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:7;' +
+        'background:rgba(8,22,34,0.95);border:1px solid rgba(63,217,255,0.5);border-radius:999px;' +
+        'color:#3fd9ff;font-family:Rajdhani,sans-serif;font-size:11px;letter-spacing:0.2em;' +
+        'text-transform:uppercase;padding:7px 16px;cursor:pointer;max-width:82vw;' +
+        'white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+      c.onclick = () => { c.remove(); recToggle(false); };
+      document.body.appendChild(c);
+    });
   }
 
   // Entry gate: one click on "Enter with voice" = sound on + wake word armed.

@@ -110,12 +110,11 @@
       const vs = speechSynthesis.getVoices();
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      // Neural voices only — a cold robotic stand-in is worse than silent text.
-      const android = /android/i.test(navigator.userAgent);
+      // Only a voice matching her recordings may speak — strangers read as
+      // glitches. Everything scripted is MP3 anyway; this is a rare fallback.
       const en = vs.filter(x => /^en/i.test(x.lang) && !/\bmale\b/i.test(x.name));
       const v = en.find(x => /online|natural|neural/i.test(x.name) && /sonia|libby|maisie|female|aria|jenny|emma|ava|michelle/i.test(x.name))
-        || en.find(x => /samantha|karen|moira|tessa|fiona/i.test(x.name))
-        || (android ? (en.find(x => x.default) || en[0] || null) : null);
+        || null;
       if (!v) { finish(); return; }
       u.voice = v;
       u.rate = 1.04;
