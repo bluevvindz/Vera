@@ -351,6 +351,7 @@
     catch { if (captureOnce) captureOnce(); return; }
     const Ctx = window.AudioContext || window.webkitAudioContext;
     const ctx = new Ctx();
+    if (ctx.state === 'suspended') { try { await ctx.resume(); } catch {} }  // iOS Safari starts suspended
     const src = ctx.createMediaStreamSource(stream);
     const node = ctx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
