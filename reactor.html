@@ -453,7 +453,8 @@ function connect() {
 function runDemo() {
   document.body.classList.add('online');
   document.getElementById('link-label').textContent = 'DEMO MODE';
-  document.getElementById('model-badge').textContent = '◆ OPUS-4-8';
+  document.getElementById('model-badge').textContent =
+    window.DEMO_API ? '◆ SANDBOXED' : '◆ REHEARSAL';  // don't clobber the live indicator
   let totalIn = 41200, totalOut = 6800, turns = 12;
   const usage = (i, o) => {
     totalIn += i; totalOut += o; turns++;
