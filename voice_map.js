@@ -14,6 +14,11 @@ window.VERA_VOICE = {
  "Three items, sir: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.": "voice/reel1.mp3",
  "On the wires now, sir — the short answer: three contenders, one clear value pick. Card’s on your display.": "voice/reel2.mp3",
  "The live brain isn't connected on this deployment yet — you're watching the rehearsal. Do try the Brain Map, though: that part is fully live, and I build yours as we talk.": "voice/canned2.mp3",
+ "Now — allow me to show off. I shall build you a live operations hub from nothing.": "voice/hub0.mp3",
+ "First: a market feed. Live numbers, straight off the wire.": "voice/hub1.mp3",
+ "Now the scoreboard — today’s games, as they happen.": "voice/hub2.mp3",
+ "A vitals monitor, because one must look after one’s principal.": "voice/hub3.mp3",
+ "And there it is — a working hub, assembled from scratch while we spoke. Say my name, and I shall build one for you.": "voice/hub4.mp3",
  "Voice enabled. Lovely to be heard.": "voice/soundon.mp3",
  "Yes?": "voice/wake.mp3",
  "Welcome. I'm Vera — say my name any time you need me.": "voice/welcome.mp3"

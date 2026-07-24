@@ -472,15 +472,22 @@ function runDemo() {
     while (el.children.length > 3) el.firstChild.remove();
   };
   const steps = [
-    [1200, () => { setMode('idle'); document.getElementById('cards').replaceChildren(); }],
+    [1200, () => { setMode('idle'); document.getElementById('cards').replaceChildren(); window.VERA_HUB && window.VERA_HUB.reset(); }],
     [2400, () => { setMode('listening'); targetLevel = 0.5; }],
     [2400, () => { addLine('user', 'Hey Vera, what’s on the docket today?'); setMode('thinking'); }],
     [2600, () => { const l = 'Three items, sir: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(2100, 340); }],
     [5200, () => { setMode('listening'); targetLevel = 0.45; }],
     [2300, () => { addLine('user', 'Research CRM options for a small consultancy.'); setMode('thinking'); }],
     [3400, () => { const l = 'On the wires now, sir — the short answer: three contenders, one clear value pick. Card’s on your display.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); card('CRM SCAN — SMALL CONSULTANCY', ['Option A — free tier, 2-seat cap, best API', 'Option B — $12/mo, native email sync', 'Option C — $29/mo, overkill until 50+ clients', 'Value pick: Option B — migration path to C is clean']); usage(8400, 620); }],
-    [6200, () => setMode('idle')],
-    [3000, () => {}],
+    [5200, () => { setMode('listening'); targetLevel = 0.4; }],
+    [2300, () => { addLine('user', 'Show me what you can really do.'); setMode('thinking'); }],
+    [2400, () => { const l = 'Now — allow me to show off. I shall build you a live operations hub from nothing.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(1700, 260); }],
+    [3800, () => { if (window.VERA_HUB) { window.VERA_HUB.show('log'); window.VERA_HUB.show('markets'); } const l = 'First: a market feed. Live numbers, straight off the wire.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(1100, 180); }],
+    [4600, () => { window.VERA_HUB && window.VERA_HUB.show('scores'); const l = 'Now the scoreboard — today’s games, as they happen.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(1300, 170); }],
+    [4600, () => { window.VERA_HUB && window.VERA_HUB.show('vitals'); const l = 'A vitals monitor, because one must look after one’s principal.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(900, 150); }],
+    [5000, () => { const l = 'And there it is — a working hub, assembled from scratch while we spoke. Say my name, and I shall build one for you.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(600, 190); }],
+    [9000, () => setMode('idle')],
+    [9000, () => {}],
   ];
   let i = 0;
   let reelStopped = false;
@@ -504,6 +511,7 @@ if (DEMO) {
   connect();
 }
 </script>
+<script src="demo_panels.js"></script>
 <script src="demo_entry.js"></script>
 <script src="demo_live.js"></script>
 </body>
