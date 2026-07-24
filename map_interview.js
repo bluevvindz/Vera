@@ -54,6 +54,7 @@
   loadVoices();
   if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
   let currentAudio = null;
+  let soundOn = true;  // 'enter muted' at the gate is honored here too
   function say(text, onDone) {
     qEl.textContent = text;
     qEl.style.display = 'block';
@@ -65,6 +66,7 @@
       jstate = 'listening';
       if (onDone) onDone();
     };
+    if (!soundOn) { setTimeout(finish, 900 + text.length * 35); return; }  // text-only pace
     // Watchdog: audio/speech can be blocked silently — always advance.
     setTimeout(finish, Math.max(4000, text.length * 80));
 
@@ -142,7 +144,9 @@
   function loadSaved() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY) || 'null');
-      return s && Array.isArray(s.nodes) && s.nodes.length ? s : null;
+      if (!(s && Array.isArray(s.nodes) && s.nodes.length)) return null;
+      if (!Array.isArray(s.edges)) s.edges = [];  // tolerate truncated/old saves
+      return s;
     } catch { return null; }
   }
   function restore(saved) {
@@ -173,7 +177,7 @@
     window.MAP_API.focus('you');
     saveBrain();
     say('And there it is — the seed of your second brain, built as we spoke. It stays in this browser — and only this browser — awaiting your return. The production system grows one of these from every conversation… and never forgets.',
-      () => { jstate = 'idle'; });
+      () => { jstate = 'idle'; if (wake) wake.resume(); });
   }
 
   function answer(text) {
@@ -216,7 +220,14 @@
     ? window.VERA_WAKE.init({ onWake: () => {
         const a = (window.VERA_VOICE || {})['Yes?'];
         if (a) { try { new Audio(a).play().catch(() => {}); } catch {} }
-        setTimeout(() => cta.onclick(), 600);
+        setTimeout(() => {
+          if (!started) { begin(); return; }
+          // Returning visitor: a voice summon must NEVER wipe their saved
+          // brain — that is exclusively the labeled rebuild button's job.
+          qEl.textContent = 'Your map stands. The rebuild button below starts fresh.';
+          qEl.style.display = 'block';
+          if (wake) wake.resume();
+        }, 600);
       } })
     : null;
 
@@ -252,8 +263,9 @@
     };
   }
 
-  // Entry gate chose voice → the name-listener is on from the first moment.
+  // Entry gate: voice choice arms the name-listener; muted stays truly silent.
   if (window.VERA_ENTRY) window.VERA_ENTRY.onDone(voice => {
+    soundOn = voice;
     if (voice && wake) wake.arm();
   });
 })();

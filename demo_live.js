@@ -54,20 +54,36 @@
   loadVoices();
   if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
   let currentAudio = null;
+  let currentFinish = null;  // pending completion of the playing MP3
+  let wakeToken = 0;         // invalidates stale wake-resume timers
+  function stopAudio() {
+    // Preempting a line must still run its completion (wake.resume, onDone…) —
+    // a paused <audio> fires neither ended nor error, so flush it by hand.
+    const a = currentAudio, f = currentFinish;
+    currentAudio = null; currentFinish = null;
+    if (a) { a.onended = a.onerror = null; try { a.pause(); } catch {} }
+    if (f) f();
+  }
   function speakAloud(text, onDone) {
     // She mustn't wake herself: pause the name-listener while a line contains it.
     const risky = wake && /\bvera\b/i.test(text);
+    const myToken = risky ? ++wakeToken : 0;
     if (risky) wake.pause();
+    let done = false;
     const finish = () => {
-      if (risky) setTimeout(() => wake.resume(), 250);
+      if (done) return;
+      done = true;
+      if (currentFinish === finish) { currentAudio = null; currentFinish = null; }
+      if (risky) setTimeout(() => { if (myToken === wakeToken) wake.resume(); }, 250);
       if (onDone) onDone();
     };
     // Pre-baked neural MP3 for scripted lines — her real voice.
     const src = (window.VERA_VOICE || {})[text];
     if (src) {
       try {
-        if (currentAudio) currentAudio.pause();
+        stopAudio();
         currentAudio = new Audio(src);
+        currentFinish = finish;
         currentAudio.onended = currentAudio.onerror = finish;
         currentAudio.play().catch(() => browserSpeak(text, finish));
         return;
@@ -110,7 +126,7 @@
     soundOn = !soundOn;
     soundBtn.textContent = soundOn ? '🔊 SOUND' : '🔇 SOUND';
     if (soundOn) speakAloud('Voice enabled. Lovely to be heard.');
-    else speechSynthesis.cancel();
+    else { stopAudio(); speechSynthesis.cancel(); }
   };
 
   /* ---- conversation ---- */
@@ -123,8 +139,9 @@
     tookOver = true;
     if (window.VERA_REEL_STOP) window.VERA_REEL_STOP();
     try { speechSynthesis.cancel(); } catch {}
-    const t = document.getElementById('transcript');
-    if (t) t.replaceChildren();
+    stopAudio();  // silence the in-flight reel MP3, not just future steps
+    if (window.VERA_TRANSCRIPT_RESET) window.VERA_TRANSCRIPT_RESET();
+    else { const t = document.getElementById('transcript'); if (t) t.replaceChildren(); }
     const c = document.getElementById('cards');
     if (c) c.replaceChildren();
     setMode('idle');
@@ -156,14 +173,13 @@
       reply = (r.ok && data.reply) ? String(data.reply).slice(0, 600)
         : (data.error === 'rate_limited'
           ? 'You have rather exhausted my public allowance for the moment — do return later, or contact the management for the full experience.'
-          : 'A gremlin in the wires, sir. Do try again.');
+          : 'A gremlin in the wires. Do try again.');
     } catch {
-      reply = 'The uplink hiccuped, sir. Once more, if you please.';
+      reply = 'The uplink hiccuped. Once more, if you please.';
     }
     history.push({ role: 'assistant', content: reply });
     setMode('speaking'); addLine('jarvis', reply);
     speakAloud(reply, () => { setMode('idle'); busy = false; });
-    busy = false;
   }
   sendBtn.onclick = () => send(input.value);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') send(input.value); });
@@ -181,7 +197,7 @@
     captureOnce = () => {
       if (rec) { rec.stop(); return; }
       takeover();
-      if (wake) wake.pause();  // one recognizer at a time
+      if (wake) { wakeToken++; wake.pause(); }  // one recognizer at a time; kill stale resumes
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
       mic.classList.add('rec'); mic.textContent = '◉ LISTENING';

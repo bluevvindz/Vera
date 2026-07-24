@@ -503,6 +503,7 @@ if (DEMO) {
   const cycle = ['idle', 'idle', 'listening', 'thinking', 'speaking', 'idle'];
   let ci = 0;
   setInterval(() => {
+    if (interviewMode) return;  // the interview owns jstate from here on
     jstate = cycle[ci = (ci + 1) % cycle.length];
     document.getElementById('mode-label').textContent = jstate.toUpperCase();
     if (jstate === 'listening') mtarget = 0.45;

@@ -376,6 +376,15 @@ function pumpTyping() {
   }, 17);
 }
 
+// Shared reset: reconnects and the demo takeover (demo_live.js) both need the
+// typewriter stopped, not just the DOM cleared — a detached job blocks the queue.
+window.VERA_TRANSCRIPT_RESET = () => {
+  clearInterval(typeTimer);
+  typing = false;
+  typeQueue.length = 0;
+  transcriptEl.replaceChildren();
+};
+
 /* ------------------------------------------------------------------ clock */
 function tickClock() {
   const d = new Date();
@@ -401,10 +410,7 @@ function connect() {
   ws.onopen = () => {
     // The server replays state + cards + recent transcript on connect; start
     // clean so a reconnect doesn't duplicate what's already on screen.
-    clearInterval(typeTimer);
-    typing = false;
-    typeQueue.length = 0;
-    transcriptEl.replaceChildren();
+    window.VERA_TRANSCRIPT_RESET();
     document.getElementById('cards').replaceChildren();
   };
   ws.onmessage = (e) => {
@@ -483,7 +489,7 @@ function runDemo() {
     [5200, () => { setMode('listening'); targetLevel = 0.4; }],
     [2300, () => { addLine('user', 'Show me what you can really do.'); setMode('thinking'); }],
     [2400, () => { const l = 'Now — allow me to show off. I shall build you a live operations hub from nothing.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(1700, 260); }],
-    [3800, () => { if (window.VERA_HUB) { window.VERA_HUB.show('log'); window.VERA_HUB.show('markets'); } const l = 'First: a market feed. Live numbers, straight off the wire.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(1100, 180); }],
+    [3800, () => { document.getElementById('cards').replaceChildren(); if (window.VERA_HUB) { window.VERA_HUB.show('log'); window.VERA_HUB.show('markets'); } const l = 'First: a market feed. Live numbers, straight off the wire.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(1100, 180); }],
     [4600, () => { window.VERA_HUB && window.VERA_HUB.show('scores'); const l = 'Now the scoreboard — today’s games, as they happen.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(1300, 170); }],
     [4600, () => { window.VERA_HUB && window.VERA_HUB.show('vitals'); const l = 'A vitals monitor, because one must look after one’s principal.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(900, 150); }],
     [5000, () => { const l = 'And there it is — a working hub, assembled from scratch while we spoke. Say my name, and I shall build one for you.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(600, 190); }],

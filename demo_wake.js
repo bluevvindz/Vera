@@ -61,7 +61,11 @@
         };
         try { rec.start(); } catch { rec = null; }
       }
-      function stop() { paused = true; if (rec) { try { rec.onend = null; rec.stop(); } catch {} rec = null; } }
+      function stop() {
+        paused = true;
+        if (enabled) chip.style.display = 'none';  // never advertise a dead hotword
+        if (rec) { try { rec.onend = null; rec.stop(); } catch {} rec = null; }
+      }
       function arm() {
         if (enabled) return;
         enabled = true; paused = false;

@@ -21,5 +21,8 @@ window.VERA_VOICE = {
  "And there it is — a working hub, assembled from scratch while we spoke. Say my name, and I shall build one for you.": "voice/hub4.mp3",
  "Voice enabled. Lovely to be heard.": "voice/soundon.mp3",
  "Yes?": "voice/wake.mp3",
- "Welcome. I'm Vera — say my name any time you need me.": "voice/welcome.mp3"
+ "Welcome. I'm Vera — say my name any time you need me.": "voice/welcome.mp3",
+ "You have rather exhausted my public allowance for the moment — do return later, or contact the management for the full experience.": "voice/ratelimit.mp3",
+ "A gremlin in the wires. Do try again.": "voice/gremlin.mp3",
+ "The uplink hiccuped. Once more, if you please.": "voice/uplink.mp3"
 };

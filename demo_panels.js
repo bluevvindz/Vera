@@ -37,7 +37,8 @@
     #hub-log .hub-line b { color: #3fd9ff; font-weight: 500; }
     @media (max-width: 900px) {
       #hub-dock { top: auto; bottom: 152px; left: 8px; right: 8px; width: auto;
-        flex-direction: row; overflow-x: auto; }
+        flex-direction: row; overflow-x: auto; pointer-events: auto;
+        -webkit-overflow-scrolling: touch; }
       .hub-panel { min-width: 208px; flex: 0 0 auto; } }`;
   document.head.appendChild(css);
 
@@ -96,7 +97,7 @@
       p.live(live);
       p.body.replaceChildren();
       for (const [id, sym] of NAMES) {
-        const d = data[id]; if (!d) continue;
+        const d = data[id]; if (!d || typeof d.usd !== 'number') continue;
         const chg = d.usd_24h_change ?? d.c ?? 0;
         const price = d.usd >= 1000 ? Math.round(d.usd).toLocaleString('en-US') : d.usd.toFixed(2);
         row(p.body, sym, `$${price}  ${chg >= 0 ? '▲' : '▼'}${Math.abs(chg).toFixed(1)}%`, chg >= 0 ? 'up' : 'dn');
