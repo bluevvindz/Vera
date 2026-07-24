@@ -78,9 +78,23 @@
   /* ---- conversation ---- */
   const history = [];
   let busy = false;
+  let tookOver = false;
+  function takeover() {
+    // A visitor stepped up: stop the attract reel, clear the stage, theirs now.
+    if (tookOver) return;
+    tookOver = true;
+    if (window.VERA_REEL_STOP) window.VERA_REEL_STOP();
+    try { speechSynthesis.cancel(); } catch {}
+    const t = document.getElementById('transcript');
+    if (t) t.replaceChildren();
+    const c = document.getElementById('cards');
+    if (c) c.replaceChildren();
+    setMode('idle');
+  }
   async function send(text) {
     text = (text || '').trim();
     if (!text || busy) return;
+    takeover();
     input.value = '';
     addLine('user', text);
     if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }  // sending IS the gesture
@@ -123,6 +137,7 @@
     let rec = null;
     mic.onclick = () => {
       if (rec) { rec.stop(); return; }
+      takeover();
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
       mic.classList.add('rec'); setMode('listening'); targetLevel = 0.5;

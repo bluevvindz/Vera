@@ -1,197 +1,178 @@
 window.BRAIN_DATA = {
  "nodes": [
   {
-   "id": "income-ops",
-   "label": "Income Ops \u2014 the revenue mission",
-   "type": "business"
-  },
-  {
-   "id": "metadrip",
-   "label": "Metadrip Solutions",
-   "type": "business"
-  },
-  {
-   "id": "vera",
-   "label": "V.E.R.A. \u2014 the public identity",
-   "type": "business"
-  },
-  {
-   "id": "content-agent",
-   "label": "Instagram Content Agent",
-   "type": "idea"
-  },
-  {
-   "id": "memory-architecture",
-   "label": "Memory Architecture \u2014 the human-brain model",
-   "type": "idea"
-  },
-  {
-   "id": "index",
-   "label": "Kevin's Second Brain \u2014 root",
+   "id": "brain",
+   "label": "Second Brain",
    "type": "router"
   },
   {
-   "id": "dating-app",
-   "label": "Dating App",
-   "type": "project"
-  },
-  {
-   "id": "jarvis",
+   "id": "assistant",
    "label": "V.E.R.A. (this system)",
    "type": "project"
   },
   {
-   "id": "one-in-ten",
-   "label": "ONE IN TEN",
+   "id": "acme",
+   "label": "Acme Consulting",
+   "type": "business"
+  },
+  {
+   "id": "website",
+   "label": "Website Redesign",
    "type": "project"
   },
   {
-   "id": "rp-plastic-surgery",
-   "label": "RP Plastic Surgery site",
-   "type": "project"
+   "id": "leads",
+   "label": "Leads Ledger",
+   "type": "business"
   },
   {
-   "id": "hermes-agent",
-   "label": "Hermes Agent (Nous Research)",
+   "id": "crm",
+   "label": "CRM Comparison",
    "type": "tool"
   },
   {
-   "id": "ability-system_report",
-   "label": "system_report",
+   "id": "research",
+   "label": "research",
    "type": "ability"
   },
   {
-   "id": "ability-look_at_screen",
-   "label": "look_at_screen",
+   "id": "scheduler",
+   "label": "scheduler",
    "type": "ability"
   },
   {
-   "id": "ability-map_brain",
-   "label": "map_brain",
+   "id": "watch",
+   "label": "screen-watch",
    "type": "ability"
   },
   {
-   "id": "ability-build_demo",
-   "label": "build_demo",
-   "type": "ability"
+   "id": "mobile",
+   "label": "Mobile App MVP",
+   "type": "project"
+  },
+  {
+   "id": "q3",
+   "label": "Q3 Goals",
+   "type": "business"
+  },
+  {
+   "id": "meeting",
+   "label": "Meeting Notes 07-24",
+   "type": "note"
+  },
+  {
+   "id": "podcast",
+   "label": "Podcast Concept",
+   "type": "idea"
+  },
+  {
+   "id": "news",
+   "label": "Weekly Newsletter",
+   "type": "idea"
+  },
+  {
+   "id": "lisbon",
+   "label": "Lisbon Trip Plan",
+   "type": "note"
+  },
+  {
+   "id": "reading",
+   "label": "Reading List",
+   "type": "note"
   }
  ],
  "edges": [
   {
-   "a": "income-ops",
-   "b": "jarvis"
+   "a": "assistant",
+   "b": "brain"
   },
   {
-   "a": "income-ops",
-   "b": "metadrip"
+   "a": "acme",
+   "b": "brain"
   },
   {
-   "a": "income-ops",
-   "b": "rp-plastic-surgery"
+   "a": "website",
+   "b": "acme"
   },
   {
-   "a": "metadrip",
-   "b": "jarvis"
+   "a": "website",
+   "b": "brain"
   },
   {
-   "a": "metadrip",
-   "b": "rp-plastic-surgery"
+   "a": "leads",
+   "b": "acme"
   },
   {
-   "a": "metadrip",
-   "b": "income-ops"
+   "a": "crm",
+   "b": "acme"
   },
   {
-   "a": "vera",
-   "b": "jarvis"
+   "a": "crm",
+   "b": "leads"
   },
   {
-   "a": "vera",
-   "b": "income-ops"
+   "a": "research",
+   "b": "assistant"
   },
   {
-   "a": "content-agent",
-   "b": "income-ops"
+   "a": "scheduler",
+   "b": "assistant"
   },
   {
-   "a": "content-agent",
-   "b": "jarvis"
+   "a": "watch",
+   "b": "assistant"
   },
   {
-   "a": "memory-architecture",
-   "b": "jarvis"
+   "a": "mobile",
+   "b": "brain"
   },
   {
-   "a": "index",
-   "b": "jarvis"
+   "a": "mobile",
+   "b": "acme"
   },
   {
-   "a": "index",
-   "b": "dating-app"
+   "a": "q3",
+   "b": "acme"
   },
   {
-   "a": "index",
-   "b": "one-in-ten"
+   "a": "q3",
+   "b": "leads"
   },
   {
-   "a": "index",
-   "b": "rp-plastic-surgery"
+   "a": "q3",
+   "b": "mobile"
   },
   {
-   "a": "index",
-   "b": "metadrip"
+   "a": "meeting",
+   "b": "website"
   },
   {
-   "a": "index",
-   "b": "income-ops"
+   "a": "meeting",
+   "b": "acme"
   },
   {
-   "a": "dating-app",
-   "b": "jarvis"
+   "a": "podcast",
+   "b": "brain"
   },
   {
-   "a": "jarvis",
-   "b": "income-ops"
+   "a": "news",
+   "b": "podcast"
   },
   {
-   "a": "jarvis",
-   "b": "metadrip"
+   "a": "news",
+   "b": "leads"
   },
   {
-   "a": "rp-plastic-surgery",
-   "b": "metadrip"
+   "a": "lisbon",
+   "b": "brain"
   },
   {
-   "a": "rp-plastic-surgery",
-   "b": "income-ops"
+   "a": "reading",
+   "b": "brain"
   },
   {
-   "a": "hermes-agent",
-   "b": "content-agent"
-  },
-  {
-   "a": "hermes-agent",
-   "b": "jarvis"
-  },
-  {
-   "a": "hermes-agent",
-   "b": "content-agent"
-  },
-  {
-   "a": "ability-system_report",
-   "b": "jarvis"
-  },
-  {
-   "a": "ability-look_at_screen",
-   "b": "jarvis"
-  },
-  {
-   "a": "ability-map_brain",
-   "b": "jarvis"
-  },
-  {
-   "a": "ability-build_demo",
-   "b": "jarvis"
+   "a": "reading",
+   "b": "podcast"
   }
  ]
 };

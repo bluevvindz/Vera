@@ -481,20 +481,23 @@ function runDemo() {
     [3000, () => {}],
   ];
   let i = 0;
-  const next = () => { const [wait, fn] = steps[i]; setTimeout(() => { fn(); i = (i + 1) % steps.length; next(); }, wait); };
+  let reelStopped = false;
+  window.VERA_REEL_STOP = () => { reelStopped = true; };
+  const next = () => {
+    const [wait, fn] = steps[i];
+    setTimeout(() => { if (reelStopped) return; fn(); i = (i + 1) % steps.length; next(); }, wait);
+  };
   next();
 }
 
 if (DEMO) {
-  if (window.DEMO_API) {
-    // live demo: visitors chat via demo_live.js — no scripted loop
-    document.body.classList.add('online');
-    document.getElementById('link-label').textContent = 'DEMO MODE';
-    document.getElementById('model-badge').textContent = '◆ SANDBOXED';
-    setMode('idle');
-  } else {
-    runDemo();
-  }
+  // Attract mode: the reel always performs; any visitor engagement takes
+  // over the stage instantly (demo_live.js calls VERA_REEL_STOP).
+  document.body.classList.add('online');
+  document.getElementById('link-label').textContent = 'DEMO MODE';
+  document.getElementById('model-badge').textContent =
+    window.DEMO_API ? '◆ SANDBOXED' : '◆ REHEARSAL';
+  runDemo();
 } else {
   connect();
 }

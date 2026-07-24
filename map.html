@@ -126,17 +126,23 @@ if (!DATA || !DATA.nodes || !DATA.nodes.length) {
   throw new Error('no brain data');
 }
 
-const nodes = DATA.nodes.map(n => ({ ...n, x: 0, y: 0, z: 0, deg: 0 }));
-const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+const nodes = DATA.nodes.map((n, ix) => ({ ...n, x: 0, y: 0, z: 0, deg: 0, ix }));
+let byId = Object.fromEntries(nodes.map(n => [n.id, n]));
 const edges = DATA.edges
   .filter(e => byId[e.a] && byId[e.b])
   .map(e => ({ a: byId[e.a], b: byId[e.b] }));
-const neighbors = {};
-for (const e of edges) {
-  e.a.deg++; e.b.deg++;
-  (neighbors[e.a.id] = neighbors[e.a.id] || new Set()).add(e.b.id);
-  (neighbors[e.b.id] = neighbors[e.b.id] || new Set()).add(e.a.id);
+let neighbors = {};
+function rebuildDerived() {
+  byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+  neighbors = {};
+  for (const n of nodes) n.deg = 0;
+  for (const e of edges) {
+    e.a.deg++; e.b.deg++;
+    (neighbors[e.a.id] = neighbors[e.a.id] || new Set()).add(e.b.id);
+    (neighbors[e.b.id] = neighbors[e.b.id] || new Set()).add(e.a.id);
+  }
 }
+rebuildDerived();
 
 // deterministic starting positions on a sphere, then spring relaxation
 function hash(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -172,40 +178,44 @@ for (let iter = 0; iter < ITERS; iter++) {
 }
 
 /* ------------------------------------------------------------- ui panels */
-const typeCounts = {};
-for (const n of nodes) typeCounts[n.type] = (typeCounts[n.type] || 0) + 1;
 const hiddenTypes = new Set();
 const chipList = document.getElementById('chip-list');
-for (const [t, count] of Object.entries(typeCounts).sort((a, b) => b[1] - a[1])) {
-  const chip = document.createElement('div');
-  chip.className = 'chip';
-  const dot = document.createElement('span');
-  dot.className = 'dot'; dot.style.background = colorOf(t);
-  dot.style.boxShadow = `0 0 8px ${colorOf(t)}`;
-  const name = document.createElement('span'); name.textContent = t;
-  const num = document.createElement('span'); num.className = 'n'; num.textContent = count;
-  chip.append(dot, name, num);
-  chip.onclick = () => { chip.classList.toggle('off');
-    hiddenTypes.has(t) ? hiddenTypes.delete(t) : hiddenTypes.add(t); };
-  chipList.appendChild(chip);
-}
-
-let focus = null;
 const hubList = document.getElementById('hub-list');
-for (const n of [...nodes].sort((a, b) => b.deg - a.deg).slice(0, 6)) {
-  const row = document.createElement('div');
-  row.className = 'hub';
-  // textContent only — labels come from files VERA writes after web research,
-  // so they are untrusted (the review demonstrated a working XSS via innerHTML)
-  const name = document.createElement('span');
-  name.textContent = n.label;
-  const deg = document.createElement('span');
-  deg.className = 'n';
-  deg.textContent = n.deg;
-  row.append(name, deg);
-  row.onclick = () => setFocus(n);
-  hubList.appendChild(row);
+let focus = null;
+
+function buildPanels() {
+  const typeCounts = {};
+  for (const n of nodes) typeCounts[n.type] = (typeCounts[n.type] || 0) + 1;
+  chipList.replaceChildren();
+  for (const [t, count] of Object.entries(typeCounts).sort((a, b) => b[1] - a[1])) {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (hiddenTypes.has(t) ? ' off' : '');
+    const dot = document.createElement('span');
+    dot.className = 'dot'; dot.style.background = colorOf(t);
+    dot.style.boxShadow = `0 0 8px ${colorOf(t)}`;
+    const name = document.createElement('span'); name.textContent = t;
+    const num = document.createElement('span'); num.className = 'n'; num.textContent = count;
+    chip.append(dot, name, num);
+    chip.onclick = () => { chip.classList.toggle('off');
+      hiddenTypes.has(t) ? hiddenTypes.delete(t) : hiddenTypes.add(t); };
+    chipList.appendChild(chip);
+  }
+  hubList.replaceChildren();
+  for (const n of [...nodes].sort((a, b) => b.deg - a.deg).slice(0, 6)) {
+    const row = document.createElement('div');
+    row.className = 'hub';
+    // textContent only — labels are untrusted (visitor answers, agent-written files)
+    const name = document.createElement('span');
+    name.textContent = n.label;
+    const deg = document.createElement('span');
+    deg.className = 'n';
+    deg.textContent = n.deg;
+    row.append(name, deg);
+    row.onclick = () => setFocus(n);
+    hubList.appendChild(row);
+  }
 }
+buildPanels();
 
 const inspector = document.getElementById('inspector');
 function setFocus(n) {
@@ -264,6 +274,57 @@ let yaw = 0.4, pitch = 0.12, zoom = 1, autoSpin = true;
 let hovered = null;
 const projected = new Map();
 
+/* Demo attract mode: the map assembles itself node by node — showing the
+   indexing capability with sample data. Any interaction snaps it complete. */
+let bornCount = DEMO ? 1 : nodes.length;
+let assembling = DEMO;
+if (DEMO) {
+  const birth = setInterval(() => {
+    bornCount++;
+    if (bornCount >= nodes.length) {
+      bornCount = nodes.length; assembling = false; clearInterval(birth);
+    }
+  }, 900);
+  const skip = () => { bornCount = nodes.length; assembling = false; clearInterval(birth); };
+  addEventListener('mousedown', skip, { once: true });
+  addEventListener('wheel', skip, { once: true });
+}
+let interviewMode = false;
+const born = n => interviewMode || n.ix < bornCount;
+
+/* Live-build API for the visitor interview (map_interview.js). Their map is
+   tab-local by design: nothing leaves the browser, everything dies with it. */
+window.MAP_API = {
+  begin() {
+    interviewMode = true; assembling = false;
+    nodes.length = 0; edges.length = 0; focus = null;
+    inspector.style.display = 'none';
+    this.add('you', 'Your Brain', 'router', []);
+    autoSpin = true;
+    return byId['you'];
+  },
+  add(id, label, type, links) {
+    const parent = links && links.length ? byId[links[0]] : null;
+    const jit = () => (Math.random() - 0.5) * 160;
+    const n = {
+      id, label: String(label).slice(0, 40), type, deg: 0,
+      x: parent ? parent.x + jit() : 0,
+      y: parent ? parent.y + jit() * 0.7 : 0,
+      z: parent ? parent.z + jit() : 0,
+      ix: nodes.length,
+    };
+    nodes.push(n);
+    if (links) for (const l of links) if (byId[l]) edges.push({ a: n, b: byId[l] });
+    rebuildDerived();
+    buildPanels();
+    return n;
+  },
+  relabel(id, label) {
+    if (byId[id]) { byId[id].label = String(label).slice(0, 40); buildPanels(); }
+  },
+  focus(id) { if (byId[id]) setFocus(byId[id]); },
+};
+
 function project(n, cx, cy, f) {
   const cy1 = Math.cos(yaw), sy1 = Math.sin(yaw);
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
@@ -293,6 +354,7 @@ function draw(now) {
 
   // edges
   for (const e of edges) {
+    if (!born(e.a) || !born(e.b)) continue;
     if (!visible(e.a) || !visible(e.b)) continue;
     const pa = projected.get(e.a.id), pb = projected.get(e.b.id);
     const lit = focusSet && focusSet.has(e.a.id) && focusSet.has(e.b.id)
@@ -306,7 +368,14 @@ function draw(now) {
   }
 
   // nodes, back to front
-  const order = [...nodes].sort((a, b) => projected.get(a.id).z - projected.get(b.id).z);
+  if (DEMO) {
+    document.getElementById('mode-label').textContent = interviewMode
+      ? `${jstate.toUpperCase()} · YOUR MAP — THIS TAB ONLY`
+      : (assembling
+        ? `MAPPING MEMORY · ${bornCount} / ${nodes.length}`
+        : 'MEMORY MAPPED · SAMPLE DATA');
+  }
+  const order = [...nodes].filter(born).sort((a, b) => projected.get(a.id).z - projected.get(b.id).z);
   for (const n of order) {
     const p = projected.get(n.id);
     const base = (5 + Math.min(n.deg, 8) * 1.1) * p.scale * zoom * DPR;
@@ -440,5 +509,6 @@ if (DEMO) {
   connect();
 }
 </script>
+<script src="map_interview.js"></script>
 </body>
 </html>
