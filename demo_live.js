@@ -67,9 +67,20 @@
     browserSpeak(text, finish);
   }
   function browserSpeak(text, finish) {
+    // The voice list loads async; speaking before it exists = default robo-voice.
+    if (!speechSynthesis.getVoices().length) {
+      let fired = false;
+      const go = () => { if (!fired) { fired = true; browserSpeakNow(text, finish); } };
+      speechSynthesis.onvoiceschanged = go;
+      setTimeout(go, 800);
+      return;
+    }
+    browserSpeakNow(text, finish);
+  }
+  function browserSpeakNow(text, finish) {
     try {
-      const vs = speechSynthesis.getVoices();  // fresh at call time — the cached
-      speechSynthesis.cancel();                // list races and falls back to David
+      const vs = speechSynthesis.getVoices();
+      speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       const v = vs.find(x => /en-GB/i.test(x.lang) && /sonia|libby|hazel|maisie|female|natural/i.test(x.name))
         || vs.find(x => /en-GB/i.test(x.lang) && /google/i.test(x.name))

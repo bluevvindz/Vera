@@ -79,8 +79,18 @@
     speakBrowser(text, finish);
   }
   function speakBrowser(text, finish) {
+    if (!speechSynthesis.getVoices().length) {  // list loads async — wait for it
+      let fired = false;
+      const go = () => { if (!fired) { fired = true; speakBrowserNow(text, finish); } };
+      speechSynthesis.onvoiceschanged = go;
+      setTimeout(go, 800);
+      return;
+    }
+    speakBrowserNow(text, finish);
+  }
+  function speakBrowserNow(text, finish) {
     try {
-      const vs = speechSynthesis.getVoices();  // fresh — never trust the cache
+      const vs = speechSynthesis.getVoices();
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       const v = vs.find(x => /en-GB/i.test(x.lang) && /sonia|libby|hazel|maisie|female|natural/i.test(x.name))
@@ -115,6 +125,40 @@
   let name = 'friend';
   let awaiting = false;  // only accept answers once the current question is fully asked
 
+  /* ---- persistence: their map, their device, nothing anywhere else ---- */
+  const KEY = 'vera_brain_v1';
+  function saveBrain() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        name,
+        nodes: nodes.map(n => ({ id: n.id, label: n.label, type: n.type })),
+        edges: edges.map(e => [e.a.id, e.b.id]),
+      }));
+    } catch { /* private mode etc. — gracefully tab-only */ }
+  }
+  function loadSaved() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      return s && Array.isArray(s.nodes) && s.nodes.length ? s : null;
+    } catch { return null; }
+  }
+  function restore(saved) {
+    started = true;
+    window.MAP_API.begin();
+    name = saved.name || 'friend';
+    const router = saved.nodes.find(n => n.type === 'router');
+    if (router) window.MAP_API.relabel('you', router.label);
+    for (const n of saved.nodes) {
+      if (n.type === 'router') continue;
+      const links = saved.edges
+        .filter(([a, b]) => a === n.id || b === n.id)
+        .map(([a, b]) => (a === n.id ? b : a))
+        .filter(id => id === 'you' || nodes.some(x => x.id === id));
+      window.MAP_API.add(n.id, n.label, n.type, links.length ? links : ['you']);
+    }
+    window.MAP_API.focus('you');
+  }
+
   function nextQuestion() {
     step++;
     if (step >= steps.length) return finale();
@@ -124,7 +168,8 @@
   function finale() {
     bar.style.display = 'none';
     window.MAP_API.focus('you');
-    say('And there it is — the seed of your second brain, built as we spoke. It lives only in this tab and vanishes when you leave. The production system grows one of these from every conversation… and never forgets.',
+    saveBrain();
+    say('And there it is — the seed of your second brain, built as we spoke. It stays in this browser — and only this browser — awaiting your return. The production system grows one of these from every conversation… and never forgets.',
       () => { jstate = 'idle'; });
   }
 
@@ -142,6 +187,7 @@
       name = name.charAt(0).toUpperCase() + name.slice(1);
     }
     const ack = steps[step].handle(text, name);
+    saveBrain();
     say(ack, nextQuestion);
   }
 
@@ -155,14 +201,30 @@
     window.MAP_API.begin();
     say('Splendid. Five questions, and I shall build your map as you answer.', nextQuestion);
   }
-  cta.onclick = begin;
+  cta.onclick = () => {
+    if (started) {  // returning visitor: CTA means "start over"
+      try { localStorage.removeItem(KEY); } catch {}
+      started = false;
+      step = -1;
+    }
+    begin();
+  };
   const wake = window.VERA_WAKE
     ? window.VERA_WAKE.init({ onWake: () => {
         const a = (window.VERA_VOICE || {})['Yes?'];
         if (a) { try { new Audio(a).play().catch(() => {}); } catch {} }
-        setTimeout(begin, 600);
+        setTimeout(() => cta.onclick(), 600);
       } })
     : null;
+
+  /* Returning visitor: their galaxy, restored before a single click. */
+  const saved = loadSaved();
+  if (saved) {
+    restore(saved);
+    cta.textContent = '◈ Rebuild my brain — 2 min';
+    qEl.textContent = 'Back again? Your map — precisely as you left it.';
+    qEl.style.display = 'block';
+  }
   go.onclick = () => answer(input.value);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') answer(input.value); });
 
