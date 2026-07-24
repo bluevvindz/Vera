@@ -74,14 +74,22 @@
     // Watchdog: audio/speech can be blocked silently — always advance.
     sayTimer = setTimeout(finish, Math.max(4000, text.length * 80));
 
-    // Scripted lines ship as pre-baked neural MP3s (her REAL voice).
+    // Scripted lines ship as pre-baked neural MP3s (her REAL voice), played
+    // through ONE shared element — iOS WebKit only trusts a tap-blessed one.
     const src = (window.VERA_VOICE || {})[text];
     if (src) {
       try {
         if (currentAudio) currentAudio.pause();
-        currentAudio = new Audio(src);
-        currentAudio.onended = currentAudio.onerror = finish;
-        currentAudio.play().catch(() => speakBrowser(text, finish));
+        if (!window.VERA_AUDIO_EL) {
+          window.VERA_AUDIO_EL = new Audio();
+          window.VERA_AUDIO_EL.playsInline = true;
+          window.VERA_AUDIO_EL.setAttribute('playsinline', '');
+        }
+        const el = window.VERA_AUDIO_EL;
+        el.onended = el.onerror = finish;
+        el.src = src;
+        currentAudio = el;
+        el.play().catch(() => speakBrowser(text, finish));
         return;
       } catch { /* fall through */ }
     }
@@ -223,6 +231,20 @@
   function begin() {
     if (started) return;
     started = true;
+    // The CTA tap is a gesture: bless the shared audio element here too, for
+    // visitors who arrived with a prior session and never clicked the gate.
+    try {
+      if (!window.VERA_AUDIO_EL) {
+        const el = new Audio();
+        el.playsInline = true;
+        el.setAttribute('playsinline', '');
+        el.volume = 0;
+        el.src = 'voice/wake.mp3';
+        el.play().then(() => { el.pause(); el.volume = 1; el.currentTime = 0; })
+          .catch(() => { el.volume = 1; });
+        window.VERA_AUDIO_EL = el;
+      }
+    } catch {}
     if (wake) wake.pause();
     cta.style.display = 'none';
     bar.style.display = 'flex';
@@ -240,7 +262,14 @@
   const wake = window.VERA_WAKE
     ? window.VERA_WAKE.init({ onWake: () => {
         const a = (window.VERA_VOICE || {})['Yes?'];
-        if (a) { try { new Audio(a).play().catch(() => {}); } catch {} }
+        if (a && window.VERA_AUDIO_EL) {
+          try {
+            const el = window.VERA_AUDIO_EL;
+            el.onended = el.onerror = null;
+            el.src = a;
+            el.play().catch(() => {});
+          } catch {}
+        }
         setTimeout(() => {
           if (!started) { begin(); return; }
           // Returning visitor: a voice summon must NEVER wipe their saved

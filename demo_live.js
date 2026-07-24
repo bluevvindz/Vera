@@ -61,6 +61,17 @@
   let currentAudio = null;
   let currentFinish = null;  // pending completion of the playing MP3
   let wakeToken = 0;         // invalidates stale wake-resume timers
+  function audioEl() {
+    // ONE reusable element for all playback — iOS WebKit only trusts an
+    // element blessed inside a tap (demo_entry does the blessing).
+    if (!window.VERA_AUDIO_EL) {
+      const el = new Audio();
+      el.playsInline = true;
+      el.setAttribute('playsinline', '');
+      window.VERA_AUDIO_EL = el;
+    }
+    return window.VERA_AUDIO_EL;
+  }
   function stopAudio() {
     // Preempting a line must still run its completion (wake.resume, onDone…) —
     // a paused <audio> fires neither ended nor error, so flush it by hand.
@@ -87,10 +98,12 @@
     if (src) {
       try {
         stopAudio();
-        currentAudio = new Audio(src);
+        const el = audioEl();
+        el.onended = el.onerror = finish;
+        el.src = src;
+        currentAudio = el;
         currentFinish = finish;
-        currentAudio.onended = currentAudio.onerror = finish;
-        currentAudio.play().catch(() => browserSpeak(text, finish));
+        el.play().catch(() => browserSpeak(text, finish));
         return;
       } catch { /* fall through */ }
     }
@@ -164,10 +177,12 @@
       stopAudio();
       // The worker's engines return WAV (RIFF → 'UklGR') or MP3 — sniff it.
       const mime = b64audio.startsWith('UklGR') ? 'audio/wav' : 'audio/mpeg';
-      currentAudio = new Audio('data:' + mime + ';base64,' + b64audio);
+      const el = audioEl();
+      el.onended = el.onerror = finish;
+      el.src = 'data:' + mime + ';base64,' + b64audio;
+      currentAudio = el;
       currentFinish = finish;
-      currentAudio.onended = currentAudio.onerror = finish;
-      currentAudio.play().catch(finish);
+      el.play().catch(finish);
     } catch { finish(); }
   }
   async function speakReply(text, onDone) {
@@ -203,7 +218,8 @@
   /* ---- conversation ---- */
   const history = [];
   let busy = false;
-  let pendingSend = null;  // a command that arrived mid-reply waits its turn
+  let pendingSend = null;      // a command that arrived mid-reply waits its turn
+  let lastInputVoice = false;  // voice questions earn a hands-free follow-up window
   let tookOver = false;
   function takeover() {
     // A visitor stepped up: stop the attract reel, clear the stage, theirs now.
@@ -256,10 +272,20 @@
       setMode('idle'); busy = false;
       const queued = pendingSend; pendingSend = null;
       if (queued) send(queued);
+      else if (lastInputVoice) followUp();  // conversation mode: no wake word between turns
     });
   }
-  sendBtn.onclick = () => send(input.value);
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') send(input.value); });
+  sendBtn.onclick = () => { lastInputVoice = false; send(input.value); };
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { lastInputVoice = false; send(input.value); } });
+
+  // Conversation mode: she just answered a spoken question — open the mic for
+  // the follow-up without demanding her name again. Silence ends the exchange
+  // and hands control back to the wake word.
+  function followUp() {
+    if (!API || busy || recording) return;
+    if (canRecord && earsServer) recToggle(true);
+    else if (captureOnce) captureOnce();
+  }
 
   /* ---- voice in ---- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -300,6 +326,7 @@
           if (!busy) setMode('idle');
         } else {
           input.value = '';
+          lastInputVoice = true;
           send(said);
         }
         if (wake) wake.resume();
@@ -346,7 +373,7 @@
     return buf;
   }
 
-  async function recToggle() {
+  async function recToggle(auto) {
     if (busy) return;
     if (recording) { recordFinish(); return; }
     takeover();
@@ -360,13 +387,30 @@
     const src = ctx.createMediaStreamSource(stream);
     const node = ctx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
-    node.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
-    src.connect(node); node.connect(ctx.destination);
-    recording = { stream, ctx, node, chunks, rate: ctx.sampleRate,
+    const rec = { stream, ctx, node, chunks, rate: ctx.sampleRate,
+      auto: !!auto, spoke: false, quietMs: 0,
       timer: setTimeout(recordFinish, 12000) };
-    mic.classList.add('rec'); mic.textContent = '◉ TAP WHEN DONE';
+    node.onaudioprocess = e => {
+      const d = e.inputBuffer.getChannelData(0);
+      chunks.push(new Float32Array(d));
+      if (!rec.auto) return;
+      // Follow-up windows self-endpoint: speech then a pause sends; pure
+      // silence bows out quietly instead of mailing ambience to the worker.
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 8) sum += d[i] * d[i];
+      const rms = Math.sqrt(sum / (d.length / 8));
+      const frameMs = (d.length / rec.rate) * 1000;
+      if (rms > 0.015) { rec.spoke = true; rec.quietMs = 0; }
+      else rec.quietMs += frameMs;
+      if ((rec.spoke && rec.quietMs > 1300) || (!rec.spoke && rec.quietMs > 5000)) recordFinish();
+    };
+    src.connect(node); node.connect(ctx.destination);
+    recording = rec;
+    mic.classList.add('rec');
+    mic.textContent = auto ? '◉ LISTENING' : '◉ TAP WHEN DONE';
     input.value = '';
-    input.placeholder = 'Listening — speak, then tap the mic to finish…';
+    input.placeholder = auto ? 'Go on — I’m still listening…'
+      : 'Listening — speak, then tap the mic to finish…';
     setMode('listening'); targetLevel = 0.5;
   }
 
@@ -380,7 +424,12 @@
     r.stream.getTracks().forEach(t => { try { t.stop(); } catch {} });
     micIdle();
     let total = 0; for (const c of r.chunks) total += c.length;
-    if (total < r.rate * 0.4) { setMode('idle'); if (wake) wake.resume(); return; }
+    if ((r.auto && !r.spoke) || total < r.rate * 0.4) {
+      setMode('idle');
+      if (wake) wake.resume();  // silence: the exchange is over, her name resumes duty
+      return;
+    }
+    lastInputVoice = true;
     sendVoice(wavFrom(r.chunks, r.rate));
   }
 
@@ -399,7 +448,11 @@
     } catch { d = null; }
     input.placeholder = idleHint;
     busy = false;
-    const resume = () => { setMode('idle'); if (wake) wake.resume(); };
+    const resume = () => {
+      setMode('idle');
+      if (lastInputVoice) followUp();     // keep the conversation going hands-free
+      else if (wake) wake.resume();
+    };
     if (d && d.error === 'silence') {
       addLine('jarvis', 'I didn’t catch that — do try again, a touch closer to the microphone.');
       resume(); return;
@@ -421,14 +474,15 @@
     else resume();
   }
 
+  let earsServer = false;
   if (SR) mic.onclick = captureOnce;
-  else if (canRecord) mic.onclick = recToggle;
+  else if (canRecord) { earsServer = true; mic.onclick = () => recToggle(false); }
   else mic.style.display = 'none';
   if (canRecord) (async () => {
     // Upgrade to server ears once the worker confirms it has them.
     try {
       const h = await (await fetch(API + '/health')).json();
-      if (h && h.ok && h.stt) mic.onclick = recToggle;
+      if (h && h.ok && h.stt) { earsServer = true; mic.onclick = () => recToggle(false); }
     } catch { /* old worker: browser SR stays */ }
   })();
 
@@ -442,6 +496,7 @@
         takeover();
         cmd = (cmd || '').trim();
         if (cmd.split(/\s+/).length >= 2) {
+          lastInputVoice = true;
           send(cmd);                       // one breath: "Vera, …" went straight to the brain
           if (wake) wake.resume();
           return;
@@ -454,7 +509,14 @@
           if (captureOnce) captureOnce();
           else if (canRecord) recToggle();
         };
-        if (a) { try { const au = new Audio(a); au.onended = au.onerror = then; au.play().catch(then); } catch { then(); } }
+        if (a) {
+          try {
+            const el = audioEl();
+            el.onended = el.onerror = then;
+            el.src = a;
+            el.play().catch(then);
+          } catch { then(); }
+        }
         else then();
       } })
     : null;

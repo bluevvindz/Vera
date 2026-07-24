@@ -86,6 +86,26 @@
       'Welcome back, ' + window.VERA_SEED.name + ' — she remembers';
 
   function close(voice) {
+    // iOS WebKit (ALL iPhone browsers, Chrome included) only lets audio play
+    // from an element created inside a tap. Bless ONE element now, muted, and
+    // every future line — reel, replies, acks — speaks through it.
+    try {
+      if (!window.VERA_AUDIO_EL) {
+        const el = new Audio();
+        el.playsInline = true;
+        el.setAttribute('playsinline', '');
+        el.volume = 0;
+        el.src = 'voice/wake.mp3';
+        el.play().then(() => { el.pause(); el.volume = 1; el.currentTime = 0; })
+          .catch(() => { el.volume = 1; });
+        window.VERA_AUDIO_EL = el;
+      }
+      if (voice && 'speechSynthesis' in window) {
+        const u = new SpeechSynthesisUtterance(' ');
+        u.volume = 0;
+        speechSynthesis.speak(u);  // blesses browser TTS on WebKit too
+      }
+    } catch { /* audio stays best-effort */ }
     finish(voice, true);
     gate.style.opacity = '0';
     setTimeout(() => gate.remove(), 520);
