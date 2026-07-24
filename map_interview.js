@@ -187,7 +187,8 @@
     window.MAP_API.focus('you');
     saveBrain();
     say('And there it is — the Seed of your second brain, planted as we spoke. It lives in this browser — and only this browser — and it will remember you when you return. The production system grows one of these from every conversation… and never forgets.',
-      () => { jstate = 'idle'; if (wake) wake.resume(); });
+      () => { jstate = 'idle'; if (wake) wake.resume();
+        window.VERA_INSTALL && window.VERA_INSTALL.offer(); });  // Seed planted = the moment to keep her
     // The Seed's birth gives their interface its own color — from here on,
     // this visitor's V.E.R.A. is subtly, permanently theirs.
     try {

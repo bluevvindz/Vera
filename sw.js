@@ -6,7 +6,7 @@
    Voice entries migrate across versions; filenames are content-stable
    (the build re-voices a line whenever its text changes).
    Cross-origin (brain worker, data feeds) is never intercepted or cached. */
-const VERSION = 'vera-20260724141427';
+const VERSION = 'vera-20260724143405';
 const SHELL = VERSION + '-shell';
 const VOICE = VERSION + '-voice';
 const SHELL_ASSETS = ['/', '/index.html', '/reactor.html', '/map.html',

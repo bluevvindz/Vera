@@ -539,7 +539,7 @@ function runDemo() {
     [1100, async () => { await say('And there it is — a working hub, assembled from scratch while we spoke. Say my name, and I shall build one for you.'); usage(600, 190); }],
     [1500, () => setMode('idle')],
     [10000, async () => { window.VERA_HUB && window.VERA_HUB.dissolve(); await say('The stage is yours. Say my name, or simply type — and we shall build something of your own.'); usage(300, 120); }],
-    [800, () => setMode('idle')],
+    [800, () => { setMode('idle'); window.VERA_INSTALL && window.VERA_INSTALL.offer(); }],
   ];
   let i = 0;
   let reelStopped = false;
