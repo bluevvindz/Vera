@@ -508,6 +508,8 @@ function runDemo() {
     [900, async () => { window.VERA_HUB && window.VERA_HUB.show('vitals'); await say('A vitals monitor, because one must look after one’s principal.'); usage(900, 150); }],
     [1100, async () => { await say('And there it is — a working hub, assembled from scratch while we spoke. Say my name, and I shall build one for you.'); usage(600, 190); }],
     [1500, () => setMode('idle')],
+    [10000, async () => { window.VERA_HUB && window.VERA_HUB.dissolve(); await say('The stage is yours. Say my name, or simply type — and we shall build something of your own.'); usage(300, 120); }],
+    [800, () => setMode('idle')],
   ];
   let i = 0;
   let reelStopped = false;

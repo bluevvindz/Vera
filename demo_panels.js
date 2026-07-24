@@ -28,6 +28,7 @@
       border-bottom: 2px solid rgba(63,217,255,0.9); border-right: 2px solid rgba(63,217,255,0.9); }
     @keyframes hub-in { from { opacity: 0; transform: translateX(46px) scale(0.97); }
       to { opacity: 1; transform: none; } }
+    @keyframes hub-out { to { opacity: 0; transform: translateX(46px) scale(0.96); } }
     .hub-panel h4 { margin: 0; padding: 8px 12px 7px; font-size: 11px;
       letter-spacing: 0.26em; color: #3fd9ff; text-transform: uppercase;
       display: flex; justify-content: space-between; align-items: baseline;
@@ -366,6 +367,15 @@
       if (raf) cancelAnimationFrame(raf);
       raf = null; logBody = null;
       dock.replaceChildren();
+    },
+    dissolve() {
+      // The stage, not the cockpit: panels are a performance, and when the
+      // show ends they leave — the empty stage is the invitation.
+      const panels = [...dock.children];
+      panels.forEach((p, i) => {
+        p.style.animation = `hub-out 0.5s ${i * 80}ms cubic-bezier(0.4, 0, 0.9, 0.4) forwards`;
+      });
+      setTimeout(() => window.VERA_HUB.reset(), 600 + panels.length * 80);
     },
   };
 })();
