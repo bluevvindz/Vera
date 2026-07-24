@@ -13,7 +13,8 @@
 
   const css = document.createElement('style');
   css.textContent = `
-    #pwa-install { position: fixed; right: 14px; bottom: 14px; z-index: 6;
+    #pwa-install { position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 14px; z-index: 6;
       display: none; background: rgba(8,22,34,0.88); border: 1px solid rgba(63,217,255,0.4);
       border-radius: 999px; color: #3fd9ff; font-family: 'Rajdhani', sans-serif;
       font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
@@ -43,10 +44,13 @@
     }
   };
 
-  // iOS Safari: no install prompt exists — offer the manual path once.
-  if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+  // iOS/iPadOS Safari: no install prompt API exists — offer the manual path.
+  // (Modern iPads masquerade as Macs; touch points give them away.)
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
     btn.textContent = '⬇ Install: Share → Add to Home Screen';
     btn.style.display = 'block';
-    setTimeout(() => { if (!deferred) btn.style.display === 'block' && btn.remove(); }, 30000);
+    setTimeout(() => { if (!deferred && btn.isConnected) btn.remove(); }, 30000);
   }
 })();
