@@ -55,20 +55,24 @@
   if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
   let currentAudio = null;
   let soundOn = true;  // 'enter muted' at the gate is honored here too
+  let sayGen = 0;      // bumps on every say() and on interrupts — stale finishes die
+  let sayTimer = 0;
   function say(text, onDone) {
+    sayGen++; clearTimeout(sayTimer);
+    const gen = sayGen;
     qEl.textContent = text;
     qEl.style.display = 'block';
     jstate = 'speaking';
     let done = false;
     const finish = () => {
-      if (done) return;
+      if (done || gen !== sayGen) return;
       done = true;
       jstate = 'listening';
       if (onDone) onDone();
     };
-    if (!soundOn) { setTimeout(finish, 900 + text.length * 35); return; }  // text-only pace
+    if (!soundOn) { sayTimer = setTimeout(finish, 900 + text.length * 35); return; }  // text-only pace
     // Watchdog: audio/speech can be blocked silently — always advance.
-    setTimeout(finish, Math.max(4000, text.length * 80));
+    sayTimer = setTimeout(finish, Math.max(4000, text.length * 80));
 
     // Scripted lines ship as pre-baked neural MP3s (her REAL voice).
     const src = (window.VERA_VOICE || {})[text];
@@ -99,10 +103,11 @@
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       // Neural voices only — a cold robotic stand-in is worse than silent text.
+      const android = /android/i.test(navigator.userAgent);
       const en = vs.filter(x => /^en/i.test(x.lang) && !/\bmale\b/i.test(x.name));
       const v = en.find(x => /online|natural|neural/i.test(x.name) && /sonia|libby|maisie|female|aria|jenny|emma|ava|michelle/i.test(x.name))
         || en.find(x => /samantha|karen|moira|tessa|fiona/i.test(x.name))
-        || null;
+        || (android ? (en.find(x => x.default) || en[0] || null) : null);
       if (!v) { finish(); return; }
       u.voice = v;
       u.rate = 1.04;
@@ -192,6 +197,7 @@
     input.value = '';
     if (currentAudio) { try { currentAudio.pause(); } catch {} }  // they answered — she yields
     try { speechSynthesis.cancel(); } catch {}
+    sayGen++; clearTimeout(sayTimer);  // and her interrupted line can't finish late
     jstate = 'thinking';
     if (step === 0) {
       name = text
@@ -257,8 +263,15 @@
     const micIdle = () => {
       mic.classList.remove('rec'); mic.textContent = '🎙'; input.placeholder = idleHint;
     };
+    let cancelled = false;
     mic.onclick = () => {
-      if (rec) { rec.stop(); return; }
+      if (rec) {  // second tap = cancel; their typed draft survives
+        cancelled = true;
+        try { rec.abort(); } catch { try { rec.stop(); } catch {} }
+        return;
+      }
+      cancelled = false;
+      const draft = input.value;
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
       mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
@@ -272,9 +285,10 @@
       rec.onend = () => {
         micIdle(); rec = null;
         const said = input.value.trim();
-        if (said) answer(said);
+        if (cancelled || !said) { input.value = draft; return; }
+        answer(said);
       };
-      rec.onerror = () => { micIdle(); rec = null; };
+      rec.onerror = () => { micIdle(); };  // onend always follows and settles state
       rec.start();
     };
   }

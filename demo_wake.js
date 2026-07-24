@@ -11,6 +11,7 @@
   const NAME = /\b(vera|veera|vira|viera|vieira)\b/i;
 
   window.VERA_WAKE = {
+    NAME,  // shared so speakers can test their own lines against the hotword
     init({ onWake }) {
       const css = document.createElement('style');
       css.textContent = `
@@ -41,18 +42,27 @@
       function fire(transcript) {
         // One breath: "Vera, what's the weather" → onWake("what's the weather").
         if (fired) return;
+        const parts = String(transcript || '').split(NAME);
+        if (parts.length === 1) {
+          // An interim heard her name but the final rendition didn't — false
+          // alarm ("very good" → "vera good" → "very good"). Keep listening.
+          if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+          pendingIdx = null; pendingText = '';
+          if (!rec) setTimeout(listen, 300);
+          return;
+        }
         fired = true;
         if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
         pendingIdx = null;
         stop();
         chip.style.display = 'none';
-        const parts = String(transcript || '').split(NAME);
-        const cmd = parts.length > 1 ? parts[parts.length - 1].replace(/^[\s,.!?]+/, '').trim() : '';
+        const cmd = parts[parts.length - 1].replace(/^[\s,.!?]+/, '').trim();
         onWake(cmd);
       }
 
       function listen() {
         if (!enabled || paused || rec) return;
+        if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
         pendingIdx = null; pendingText = ''; fired = false;
         rec = new SR();
         rec.lang = 'en-US';
@@ -67,7 +77,8 @@
           }
           if (pendingIdx !== null) {
             pendingText = '';
-            for (let i = pendingIdx; i < e.results.length; i++) pendingText += e.results[i][0].transcript;
+            for (let i = pendingIdx; i < e.results.length; i++)
+              pendingText += (pendingText ? ' ' : '') + e.results[i][0].transcript;
             if (e.results[e.results.length - 1].isFinal) fire(pendingText);
           }
         };
@@ -88,8 +99,11 @@
       }
       function stop() {
         paused = true;
+        fired = true;  // disarm the in-flight breath — no late fire from timers or flushed results
+        if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+        pendingIdx = null; pendingText = '';
         if (enabled) chip.style.display = 'none';  // never advertise a dead hotword
-        if (rec) { try { rec.onend = null; rec.stop(); } catch {} rec = null; }
+        if (rec) { try { rec.onresult = rec.onerror = rec.onend = null; rec.stop(); } catch {} rec = null; }
       }
       function arm() {
         if (enabled) return;

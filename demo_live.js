@@ -8,6 +8,7 @@
   if (!new URLSearchParams(location.search).has('demo')) return;
 
   const API = (window.DEMO_API || '').trim();
+  const NAME_RE = (window.VERA_WAKE && window.VERA_WAKE.NAME) || /\b(vera|veera|vira|viera|vieira)\b/i;
 
   /* ---- input bar ---- */
   const bar = document.createElement('div');
@@ -66,7 +67,7 @@
   }
   function speakAloud(text, onDone) {
     // She mustn't wake herself: pause the name-listener while a line contains it.
-    const risky = wake && /\bvera\b/i.test(text);
+    const risky = wake && NAME_RE.test(text);
     const myToken = risky ? ++wakeToken : 0;
     if (risky) wake.pause();
     let done = false;
@@ -107,12 +108,14 @@
       const vs = speechSynthesis.getVoices();
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      // Neural voices only (Edge, Safari, phones). Chrome ships none, and a
-      // cold robotic stand-in is worse than text — scripted lines stay MP3 anywhere.
+      // Neural voices only (Edge, Safari, Android's default). Desktop Chrome
+      // ships none, and a cold robotic stand-in is worse than text — scripted
+      // lines stay MP3 regardless.
+      const android = /android/i.test(navigator.userAgent);
       const en = vs.filter(x => /^en/i.test(x.lang) && !/\bmale\b/i.test(x.name));
       const v = en.find(x => /online|natural|neural/i.test(x.name) && /sonia|libby|maisie|female|aria|jenny|emma|ava|michelle/i.test(x.name))
         || en.find(x => /samantha|karen|moira|tessa|fiona/i.test(x.name))
-        || null;
+        || (android ? (en.find(x => x.default) || en[0] || null) : null);
       if (!v) { voiceHint(); finish(); return; }
       u.voice = v;
       u.rate = 1.04; u.pitch = 1.0;
@@ -131,9 +134,48 @@
       'z-index:6;font-family:Rajdhani,sans-serif;font-size:11px;letter-spacing:0.18em;' +
       'color:rgba(127,184,204,0.8);background:rgba(8,22,34,0.88);padding:5px 14px;' +
       'border-radius:999px;border:1px solid rgba(63,217,255,0.25)';
-    h.textContent = 'TEXT MODE — FOR HER FULL VOICE ON LIVE REPLIES, OPEN IN MICROSOFT EDGE';
+    h.textContent = /android/i.test(navigator.userAgent)
+      ? 'TEXT MODE ON THIS DEVICE — HER SCRIPTED LINES STILL PLAY IN FULL VOICE'
+      : 'TEXT MODE — FOR HER FULL VOICE ON LIVE REPLIES, OPEN IN MICROSOFT EDGE';
     document.body.appendChild(h);
     setTimeout(() => h.remove(), 14000);
+  }
+
+  // Live replies prefer her REAL voice, synthesized by the worker (/speak) —
+  // identical in every browser. Falls back to browser TTS tier, then to text.
+  function playB64(b64audio, text, onDone) {
+    const risky = wake && NAME_RE.test(text);
+    const myToken = risky ? ++wakeToken : 0;
+    if (risky) wake.pause();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (currentFinish === finish) { currentAudio = null; currentFinish = null; }
+      if (risky) setTimeout(() => { if (myToken === wakeToken) wake.resume(); }, 250);
+      if (onDone) onDone();
+    };
+    try {
+      stopAudio();
+      currentAudio = new Audio('data:audio/mpeg;base64,' + b64audio);
+      currentFinish = finish;
+      currentAudio.onended = currentAudio.onerror = finish;
+      currentAudio.play().catch(finish);
+    } catch { finish(); }
+  }
+  async function speakReply(text, onDone) {
+    if (API) {
+      try {
+        const r = await fetch(API + '/speak', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const d = await r.json();
+        if (r.ok && d.audio) { playB64(d.audio, text, onDone); return; }
+      } catch { /* fall through */ }
+    }
+    speakAloud(text, onDone);
   }
 
   // The scripted reel (page script) speaks through this — respecting the toggle.
@@ -151,6 +193,7 @@
   /* ---- conversation ---- */
   const history = [];
   let busy = false;
+  let pendingSend = null;  // a command that arrived mid-reply waits its turn
   let tookOver = false;
   function takeover() {
     // A visitor stepped up: stop the attract reel, clear the stage, theirs now.
@@ -167,7 +210,8 @@
   }
   async function send(text) {
     text = (text || '').trim();
-    if (!text || busy) return;
+    if (!text) return;
+    if (busy) { pendingSend = text; return; }  // queued, not swallowed
     takeover();
     input.value = '';
     addLine('user', text);
@@ -198,25 +242,35 @@
     }
     history.push({ role: 'assistant', content: reply });
     setMode('speaking'); addLine('jarvis', reply);
-    speakAloud(reply, () => { setMode('idle'); busy = false; });
+    speakReply(reply, () => {
+      setMode('idle'); busy = false;
+      const queued = pendingSend; pendingSend = null;
+      if (queued) send(queued);
+    });
   }
   sendBtn.onclick = () => send(input.value);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') send(input.value); });
 
-  /* ---- browser voice in (free, Chrome/Edge) ---- */
+  /* ---- voice in ---- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const idleHint = input.placeholder;
+  const micIdle = () => {
+    mic.classList.remove('rec'); mic.textContent = '🎙'; input.placeholder = idleHint;
+  };
   let captureOnce = null;
-  if (!SR) { mic.style.display = 'none'; }
-  else {
+  if (SR) {
     let rec = null;
-    const idleHint = input.placeholder;
-    const micIdle = () => {
-      mic.classList.remove('rec'); mic.textContent = '🎙'; input.placeholder = idleHint;
-    };
+    let cancelled = false;
     captureOnce = () => {
-      if (rec) { rec.stop(); return; }
+      if (rec) {  // second tap = cancel, and their typed draft survives
+        cancelled = true;
+        try { rec.abort(); } catch { try { rec.stop(); } catch {} }
+        return;
+      }
       takeover();
       if (wake) { wakeToken++; wake.pause(); }  // one recognizer at a time; kill stale resumes
+      cancelled = false;
+      const draft = input.value;
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
       mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
@@ -231,16 +285,140 @@
       rec.onend = () => {
         micIdle(); rec = null;
         const said = input.value.trim();
-        input.value = '';
-        if (said) send(said);
-        else if (!busy) setMode('idle');
+        if (cancelled || !said) {
+          input.value = draft;
+          if (!busy) setMode('idle');
+        } else {
+          input.value = '';
+          send(said);
+        }
         if (wake) wake.resume();
       };
-      rec.onerror = () => { micIdle(); rec = null; setMode('idle'); };
+      rec.onerror = () => { micIdle(); };  // onend always follows and settles state
       rec.start();
     };
-    mic.onclick = captureOnce;
   }
+
+  /* ---- push-to-talk: her server-side ears (worker /voice) ----
+     Records real audio, Whisper transcribes it in the worker, and she answers
+     in her real voice. Same hearing in every browser — no Web Speech roulette. */
+  const canRecord = !!(API && navigator.mediaDevices && navigator.mediaDevices.getUserMedia
+    && (window.AudioContext || window.webkitAudioContext));
+  let recording = null;
+
+  function b64FromBuf(buf) {
+    const bytes = new Uint8Array(buf);
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000)
+      s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+
+  function wavFrom(chunks, sourceRate) {
+    let len = 0; for (const c of chunks) len += c.length;
+    const flat = new Float32Array(len);
+    let o = 0; for (const c of chunks) { flat.set(c, o); o += c.length; }
+    const OUT = 16000;
+    const ratio = sourceRate / OUT;
+    const n = Math.floor(flat.length / ratio);
+    const buf = new ArrayBuffer(44 + n * 2);
+    const dv = new DataView(buf);
+    const w = (off, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt ');
+    dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, OUT, true); dv.setUint32(28, OUT * 2, true);
+    dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+    w(36, 'data'); dv.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) {
+      const v = Math.max(-1, Math.min(1, flat[Math.floor(i * ratio)]));
+      dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+    }
+    return buf;
+  }
+
+  async function recToggle() {
+    if (busy) return;
+    if (recording) { recordFinish(); return; }
+    takeover();
+    if (wake) { wakeToken++; wake.pause(); }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { if (captureOnce) captureOnce(); return; }
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const src = ctx.createMediaStreamSource(stream);
+    const node = ctx.createScriptProcessor(4096, 1, 1);
+    const chunks = [];
+    node.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    src.connect(node); node.connect(ctx.destination);
+    recording = { stream, ctx, node, chunks, rate: ctx.sampleRate,
+      timer: setTimeout(recordFinish, 12000) };
+    mic.classList.add('rec'); mic.textContent = '◉ TAP WHEN DONE';
+    input.value = '';
+    input.placeholder = 'Listening — speak, then tap the mic to finish…';
+    setMode('listening'); targetLevel = 0.5;
+  }
+
+  function recordFinish() {
+    if (!recording) return;
+    const r = recording;
+    recording = null;
+    clearTimeout(r.timer);
+    try { r.node.disconnect(); } catch {}
+    try { r.ctx.close(); } catch {}
+    r.stream.getTracks().forEach(t => { try { t.stop(); } catch {} });
+    micIdle();
+    let total = 0; for (const c of r.chunks) total += c.length;
+    if (total < r.rate * 0.4) { setMode('idle'); if (wake) wake.resume(); return; }
+    sendVoice(wavFrom(r.chunks, r.rate));
+  }
+
+  async function sendVoice(wavBuf) {
+    busy = true;
+    setMode('thinking');
+    input.placeholder = 'On the wires…';
+    let d = null;
+    try {
+      const r = await fetch(API + '/voice', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ audio: b64FromBuf(wavBuf), messages: history.slice(-12) }),
+      });
+      d = await r.json().catch(() => null);
+    } catch { d = null; }
+    input.placeholder = idleHint;
+    busy = false;
+    const resume = () => { setMode('idle'); if (wake) wake.resume(); };
+    if (d && d.error === 'silence') {
+      addLine('jarvis', 'I didn’t catch that — do try again, a touch closer to the microphone.');
+      resume(); return;
+    }
+    if (d && d.error === 'rate_limited') {
+      const line = 'You have rather exhausted my public allowance for the moment — do return later, or contact the management for the full experience.';
+      addLine('jarvis', line); speakAloud(line, resume); return;
+    }
+    if (!d || !d.reply) {
+      const line = 'The uplink hiccuped. Once more, if you please.';
+      addLine('jarvis', line); speakAloud(line, resume); return;
+    }
+    if (d.heard) { addLine('user', d.heard); history.push({ role: 'user', content: d.heard }); }
+    history.push({ role: 'assistant', content: d.reply });
+    setMode('speaking');
+    addLine('jarvis', d.reply);
+    if (d.audio && soundOn) playB64(d.audio, d.reply, resume);
+    else resume();
+  }
+
+  if (SR) mic.onclick = captureOnce;
+  else if (canRecord) mic.onclick = recToggle;
+  else mic.style.display = 'none';
+  if (canRecord) (async () => {
+    // Upgrade to server ears once the worker confirms it has them.
+    try {
+      const h = await (await fetch(API + '/health')).json();
+      if (h && h.ok && h.stt) mic.onclick = recToggle;
+    } catch { /* old worker: browser SR stays */ }
+  })();
 
   let lastWake = -1e9;
   const wake = window.VERA_WAKE
@@ -257,8 +435,14 @@
           return;
         }
         const a = (window.VERA_VOICE || {})['Yes?'];
-        const then = () => { if (captureOnce) captureOnce(); };
-        if (a) { try { const au = new Audio(a); au.onended = then; au.play().catch(then); } catch { then(); } }
+        let acked = false;
+        const then = () => {
+          if (acked) return;
+          acked = true;
+          if (captureOnce) captureOnce();
+          else if (canRecord) recToggle();
+        };
+        if (a) { try { const au = new Audio(a); au.onended = au.onerror = then; au.play().catch(then); } catch { then(); } }
         else then();
       } })
     : null;
