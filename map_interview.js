@@ -38,7 +38,7 @@
   document.head.appendChild(css);
 
   const cta = document.createElement('button');
-  cta.id = 'build-cta'; cta.textContent = '◈ Build my own brain — 2 min';
+  cta.id = 'build-cta'; cta.textContent = '◈ Plant your Seed — 2 min';
   const qEl = document.createElement('div'); qEl.id = 'vera-q';
   const bar = document.createElement('div'); bar.id = 'map-talk';
   const mic = document.createElement('button'); mic.textContent = '🎙'; mic.type = 'button';
@@ -186,8 +186,15 @@
     bar.style.display = 'none';
     window.MAP_API.focus('you');
     saveBrain();
-    say('And there it is — the seed of your second brain, built as we spoke. It stays in this browser — and only this browser — awaiting your return. The production system grows one of these from every conversation… and never forgets.',
+    say('And there it is — the Seed of your second brain, planted as we spoke. It lives in this browser — and only this browser — and it will remember you when you return. The production system grows one of these from every conversation… and never forgets.',
       () => { jstate = 'idle'; if (wake) wake.resume(); });
+    // The Seed's birth gives their interface its own color — from here on,
+    // this visitor's V.E.R.A. is subtly, permanently theirs.
+    try {
+      const sig = name + '|' + nodes.map(n => n.label).join('|');
+      const hue = [...sig].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 360;
+      if (hue > 8 && hue < 352) document.documentElement.style.filter = `hue-rotate(${hue}deg)`;
+    } catch {}
   }
 
   function answer(text) {
@@ -236,8 +243,8 @@
         setTimeout(() => {
           if (!started) { begin(); return; }
           // Returning visitor: a voice summon must NEVER wipe their saved
-          // brain — that is exclusively the labeled rebuild button's job.
-          qEl.textContent = 'Your map stands. The rebuild button below starts fresh.';
+          // Seed — that is exclusively the labeled replant button's job.
+          qEl.textContent = 'Your Seed stands. The replant button below starts fresh.';
           qEl.style.display = 'block';
           if (wake) wake.resume();
         }, 600);
@@ -248,8 +255,8 @@
   const saved = loadSaved();
   if (saved) {
     restore(saved);
-    cta.textContent = '◈ Rebuild my brain — 2 min';
-    qEl.textContent = 'Back again? Your map — precisely as you left it.';
+    cta.textContent = '◈ Replant your Seed — 2 min';
+    qEl.textContent = 'Back again? Your Seed — precisely as you left it, and it remembers you.';
     qEl.style.display = 'block';
   }
   go.onclick = () => answer(input.value);

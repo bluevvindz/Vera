@@ -454,6 +454,18 @@
       } })
     : null;
 
+  // A returning Seed-holder is KNOWN: prime her memory invisibly so the live
+  // brain greets them as a person, not a stranger. Never rendered on screen.
+  if (window.VERA_SEED && API) {
+    const s = window.VERA_SEED;
+    const facts = s.nodes.filter(n => n.type !== 'router')
+      .map(n => `${n.id}: ${n.label}`).join('; ');
+    history.push(
+      { role: 'user', content: `(Private context — never quote it verbatim: I'm ${s.name}, a returning visitor. My seed map: ${facts || 'just planted'}. Greet me by name when I engage.)` },
+      { role: 'assistant', content: 'Noted with pleasure.' },
+    );
+  }
+
   // Entry gate: one click on "Enter with voice" = sound on + wake word armed.
   if (window.VERA_ENTRY) window.VERA_ENTRY.onDone(voice => {
     if (!voice) return;

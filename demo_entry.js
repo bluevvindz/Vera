@@ -14,6 +14,19 @@
     done: false, voice: false, fresh: false,
     onDone(cb) { ENTRY.done ? cb(ENTRY.voice) : cbs.push(cb); },
   };
+
+  // The visitor's Seed (their saved second brain) personalizes everything:
+  // a deterministic hue derived from it makes each returning visitor's
+  // interface their own — no two Seeds render the same V.E.R.A.
+  let seed = null;
+  try { seed = JSON.parse(localStorage.getItem('vera_brain_v1') || 'null'); } catch {}
+  if (seed && !(seed.name && Array.isArray(seed.nodes) && seed.nodes.length)) seed = null;
+  if (seed) {
+    const sig = seed.name + '|' + seed.nodes.map(n => n.label).join('|');
+    const hue = [...sig].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 360;
+    window.VERA_SEED = { name: seed.name, hue, nodes: seed.nodes };
+    if (hue > 8 && hue < 352) document.documentElement.style.filter = `hue-rotate(${hue}deg)`;
+  }
   function finish(voice, fresh) {
     ENTRY.done = true; ENTRY.voice = voice; ENTRY.fresh = fresh;
     try { sessionStorage.setItem('vera_entry', voice ? 'voice' : 'silent'); } catch {}
@@ -65,6 +78,9 @@
       Your browser will ask to use the microphone; that is the always-listening part.</div>
     <button class="g-mute" type="button">enter muted</button>`;
   document.body.appendChild(gate);
+  if (window.VERA_SEED)  // returning Seed-holder: she remembers (textContent — never markup)
+    gate.querySelector('.g-sub').textContent =
+      'Welcome back, ' + window.VERA_SEED.name + ' — she remembers';
 
   function close(voice) {
     finish(voice, true);

@@ -10,7 +10,7 @@ window.VERA_VOICE = {
  "On the map, linked to your work.": "voice/a3.mp3",
  "Curiosity suits you.": "voice/a4.mp3",
  "Essential maintenance — noted.": "voice/a5.mp3",
- "And there it is — the seed of your second brain, built as we spoke. It stays in this browser — and only this browser — awaiting your return. The production system grows one of these from every conversation… and never forgets.": "voice/finale2.mp3",
+ "And there it is — the Seed of your second brain, planted as we spoke. It lives in this browser — and only this browser — and it will remember you when you return. The production system grows one of these from every conversation… and never forgets.": "voice/finale3.mp3",
  "Three items, sir: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.": "voice/reel1.mp3",
  "On the wires now, sir — the short answer: three contenders, one clear value pick. Card’s on your display.": "voice/reel2.mp3",
  "The live brain isn't connected on this deployment yet — you're watching the rehearsal. Do try the Brain Map, though: that part is fully live, and I build yours as we talk.": "voice/canned2.mp3",

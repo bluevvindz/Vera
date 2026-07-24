@@ -2,7 +2,7 @@
    Shell: network-first, so deploys always win when online.
    Voice MP3s: cache-first (immutable by convention — text edits rename keys).
    Cross-origin (brain worker, data feeds) is never intercepted or cached. */
-const VERSION = 'vera-20260724064053';
+const VERSION = 'vera-20260724064706';
 const SHELL = VERSION + '-shell';
 const VOICE = VERSION + '-voice';
 
