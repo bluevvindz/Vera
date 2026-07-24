@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>V.E.R.A. — a real AI steward, built by Kevin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { min-height: 100vh; background: #02060c; color: #cfe4ec;
+    font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 40px 20px; text-align: center;
+    background-image: radial-gradient(ellipse at 50% 30%, rgba(20,60,85,0.25) 0%, transparent 60%); }
+  h1 { color: #3fd9ff; letter-spacing: 0.34em; font-size: clamp(22px, 4vw, 34px);
+    text-shadow: 0 0 24px rgba(63,217,255,0.45); }
+  .sub { margin-top: 10px; font-size: 12px; letter-spacing: 0.3em;
+    text-transform: uppercase; color: rgba(127,184,204,0.6); }
+  p.pitch { max-width: 560px; margin: 28px 0 6px; font-size: 16.5px; line-height: 1.65; }
+  .doors { display: flex; gap: 18px; margin: 34px 0 10px; flex-wrap: wrap; justify-content: center; }
+  .doors a { display: block; padding: 16px 30px; border: 1px solid rgba(63,217,255,0.5);
+    border-radius: 4px; color: #3fd9ff; text-decoration: none; font-size: 14px;
+    letter-spacing: 0.28em; text-transform: uppercase; transition: all 0.3s; }
+  .doors a:hover { background: rgba(63,217,255,0.1); box-shadow: 0 0 28px rgba(63,217,255,0.25); }
+  ul.real { margin: 26px 0 0; list-style: none; max-width: 520px; text-align: left; }
+  ul.real li { font-size: 14px; line-height: 1.7; padding-left: 16px; position: relative; color: #9fc3d2; }
+  ul.real li::before { content: '▸'; position: absolute; left: 0; color: rgba(63,217,255,0.6); }
+  footer { margin-top: 44px; font-size: 11px; letter-spacing: 0.24em;
+    text-transform: uppercase; color: rgba(127,184,204,0.45); }
+</style>
+</head>
+<body>
+  <h1>V.E.R.A.</h1>
+  <div class="sub">Virtual Execution &amp; Response Assistant — a public working model, not a concept video</div>
+  <p class="pitch">The public face of a private, production AI steward: always-on wake
+  word, a self-maintained second brain, a care system that quietly tracks how its
+  principal is doing, and a nightly habit of improving its own code. This is the actual
+  interface — when the live brain is connected you can talk to her yourself (type, or
+  press the mic and speak); otherwise she runs her rehearsal reel.</p>
+  <div class="doors">
+    <a href="reactor.html?demo=1">◈ Enter the Reactor</a>
+    <a href="map.html?demo=1">◈ Explore the Brain</a>
+  </div>
+  <ul class="real">
+    <li>This is a working model, not a mockup: the conversation is a real AI in real time (sandboxed — no tools, no private data), and the interface is the production system's actual code.</li>
+    <li>The production instance additionally holds real tools (files, web, email), keeps private wellbeing notes on its principal, reflects after every conversation, and runs overnight study sessions that commit tested improvements to its own repository.</li>
+    <li>Hardened by multi-agent adversarial review — 27 confirmed defects found and fixed before you ever saw this page.</li>
+  </ul>
+  <footer>Built by Kevin · Metadrip Solutions · Powered by Claude</footer>
+</body>
+</html>
