@@ -31,7 +31,10 @@
     #map-talk button { background: none; border: 1px solid rgba(63,217,255,0.45);
       border-radius: 4px; color: #3fd9ff; font-family: inherit; font-size: 12px;
       letter-spacing: 0.2em; padding: 6px 12px; cursor: pointer; }
-    #map-talk .rec { border-color: #ff5f6b !important; color: #ff5f6b !important; }`;
+    #map-talk .rec { border-color: #3fffc2 !important; color: #3fffc2 !important;
+      animation: mic-live 1.1s ease-in-out infinite; }
+    @keyframes mic-live { 0%, 100% { box-shadow: 0 0 6px rgba(63,255,194,0.35); }
+      50% { box-shadow: 0 0 22px rgba(63,255,194,0.8); } }`;
   document.head.appendChild(css);
 
   const cta = document.createElement('button');
@@ -232,15 +235,25 @@
   if (!SR) { mic.style.display = 'none'; }
   else {
     let rec = null;
+    const idleHint = input.placeholder;
+    const micIdle = () => {
+      mic.classList.remove('rec'); mic.textContent = '🎙'; input.placeholder = idleHint;
+    };
     mic.onclick = () => {
       if (rec) { rec.stop(); return; }
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
-      mic.classList.add('rec');
+      mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
+      input.placeholder = 'Listening — speak now…';
       rec.onresult = e => answer(e.results[0][0].transcript);
-      rec.onend = () => { mic.classList.remove('rec'); rec = null; };
-      rec.onerror = () => { mic.classList.remove('rec'); rec = null; };
+      rec.onend = () => { micIdle(); rec = null; };
+      rec.onerror = () => { micIdle(); rec = null; };
       rec.start();
     };
   }
+
+  // Entry gate chose voice → the name-listener is on from the first moment.
+  if (window.VERA_ENTRY) window.VERA_ENTRY.onDone(voice => {
+    if (voice && wake) wake.arm();
+  });
 })();

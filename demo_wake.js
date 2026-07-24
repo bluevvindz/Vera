@@ -62,18 +62,30 @@
         try { rec.start(); } catch { rec = null; }
       }
       function stop() { paused = true; if (rec) { try { rec.onend = null; rec.stop(); } catch {} rec = null; } }
-
-      chip.onclick = () => {
-        if (enabled) { stop(); chip.style.display = 'none'; onWake(); return; }  // click = wake too
-        enabled = true;
+      function arm() {
+        if (enabled) return;
+        enabled = true; paused = false;
         chip.textContent = '◉ Listening — say “Vera”';
         chip.classList.add('armed');
         listen();
+      }
+
+      chip.onclick = () => {
+        if (enabled) { stop(); chip.style.display = 'none'; onWake(); return; }  // click = wake too
+        arm();
       };
 
       return {
         pause: stop,
-        resume() { paused = false; if (enabled) listen(); },
+        arm,  // entry gate arms listening without a chip click
+        resume() {
+          paused = false;
+          if (!enabled) return;
+          chip.style.display = '';  // wake hid it — always-on means it comes back
+          chip.textContent = '◉ Listening — say “Vera”';
+          chip.classList.add('armed');
+          listen();
+        },
       };
     },
   };

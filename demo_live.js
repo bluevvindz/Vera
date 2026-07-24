@@ -41,7 +41,10 @@
       border-radius: 4px; color: #3fd9ff; font-family: inherit; font-size: 12px;
       letter-spacing: 0.2em; padding: 6px 12px; cursor: pointer; }
     #demo-talk button:hover { background: rgba(63,217,255,0.12); }
-    #demo-talk .rec { border-color: #ff5f6b !important; color: #ff5f6b !important; }`;
+    #demo-talk .rec { border-color: #3fffc2 !important; color: #3fffc2 !important;
+      animation: mic-live 1.1s ease-in-out infinite; }
+    @keyframes mic-live { 0%, 100% { box-shadow: 0 0 6px rgba(63,255,194,0.35); }
+      50% { box-shadow: 0 0 22px rgba(63,255,194,0.8); } }`;
   document.head.appendChild(css);
 
   /* ---- browser voice out (free) ---- */
@@ -52,7 +55,13 @@
   if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
   let currentAudio = null;
   function speakAloud(text, onDone) {
-    const finish = () => onDone && onDone();
+    // She mustn't wake herself: pause the name-listener while a line contains it.
+    const risky = wake && /\bvera\b/i.test(text);
+    if (risky) wake.pause();
+    const finish = () => {
+      if (risky) setTimeout(() => wake.resume(), 250);
+      if (onDone) onDone();
+    };
     // Pre-baked neural MP3 for scripted lines — her real voice.
     const src = (window.VERA_VOICE || {})[text];
     if (src) {
@@ -128,7 +137,7 @@
     addLine('user', text);
     if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }  // sending IS the gesture
     if (!API) {
-      const line = "The live brain isn't connected on this deployment, sir — you're watching the rehearsal. The production system answers this himself.";
+      const line = "The live brain isn't connected on this deployment yet — you're watching the rehearsal. Do try the Brain Map, though: that part is fully live, and I build yours as we talk.";
       setMode('speaking'); addLine('jarvis', line);
       speakAloud(line, () => setMode('idle'));
       return;
@@ -165,16 +174,22 @@
   if (!SR) { mic.style.display = 'none'; }
   else {
     let rec = null;
+    const idleHint = input.placeholder;
+    const micIdle = () => {
+      mic.classList.remove('rec'); mic.textContent = '🎙'; input.placeholder = idleHint;
+    };
     captureOnce = () => {
       if (rec) { rec.stop(); return; }
       takeover();
       if (wake) wake.pause();  // one recognizer at a time
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
-      mic.classList.add('rec'); setMode('listening'); targetLevel = 0.5;
+      mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
+      input.placeholder = 'Listening — speak now…';
+      setMode('listening'); targetLevel = 0.5;
       rec.onresult = e => send(e.results[0][0].transcript);
-      rec.onend = () => { mic.classList.remove('rec'); rec = null; if (!busy) setMode('idle'); };
-      rec.onerror = () => { mic.classList.remove('rec'); rec = null; setMode('idle'); };
+      rec.onend = () => { micIdle(); rec = null; if (!busy) setMode('idle'); if (wake) wake.resume(); };
+      rec.onerror = () => { micIdle(); rec = null; setMode('idle'); };
       rec.start();
     };
     mic.onclick = captureOnce;
@@ -190,4 +205,12 @@
         else then();
       } })
     : null;
+
+  // Entry gate: one click on "Enter with voice" = sound on + wake word armed.
+  if (window.VERA_ENTRY) window.VERA_ENTRY.onDone(voice => {
+    if (!voice) return;
+    if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }
+    if (wake) wake.arm();
+    if (window.VERA_ENTRY.fresh) speakAloud("Welcome. I'm Vera — say my name any time you need me.");
+  });
 })();

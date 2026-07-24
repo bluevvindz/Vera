@@ -13,7 +13,8 @@ window.VERA_VOICE = {
  "And there it is — the seed of your second brain, built as we spoke. It stays in this browser — and only this browser — awaiting your return. The production system grows one of these from every conversation… and never forgets.": "voice/finale2.mp3",
  "Three items, sir: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.": "voice/reel1.mp3",
  "On the wires now, sir — the short answer: three contenders, one clear value pick. Card’s on your display.": "voice/reel2.mp3",
- "The live brain isn't connected on this deployment, sir — you're watching the rehearsal. The production system answers this himself.": "voice/canned.mp3",
+ "The live brain isn't connected on this deployment yet — you're watching the rehearsal. Do try the Brain Map, though: that part is fully live, and I build yours as we talk.": "voice/canned2.mp3",
  "Voice enabled. Lovely to be heard.": "voice/soundon.mp3",
- "Yes?": "voice/wake.mp3"
+ "Yes?": "voice/wake.mp3",
+ "Welcome. I'm Vera — say my name any time you need me.": "voice/welcome.mp3"
 };
