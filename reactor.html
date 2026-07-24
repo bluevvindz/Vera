@@ -473,10 +473,10 @@ function runDemo() {
     [1200, () => { setMode('idle'); document.getElementById('cards').replaceChildren(); }],
     [2400, () => { setMode('listening'); targetLevel = 0.5; }],
     [2400, () => { addLine('user', 'Hey Vera, what’s on the docket today?'); setMode('thinking'); }],
-    [2600, () => { setMode('speaking'); addLine('jarvis', 'Three items, sir: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.'); usage(2100, 340); }],
+    [2600, () => { const l = 'Three items, sir: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); usage(2100, 340); }],
     [5200, () => { setMode('listening'); targetLevel = 0.45; }],
     [2300, () => { addLine('user', 'Research CRM options for a small consultancy.'); setMode('thinking'); }],
-    [3400, () => { setMode('speaking'); addLine('jarvis', 'On the wires now, sir — the short answer: three contenders, one clear value pick. Card’s on your display.'); card('CRM SCAN — SMALL CONSULTANCY', ['Option A — free tier, 2-seat cap, best API', 'Option B — $12/mo, native email sync', 'Option C — $29/mo, overkill until 50+ clients', 'Value pick: Option B — migration path to C is clean']); usage(8400, 620); }],
+    [3400, () => { const l = 'On the wires now, sir — the short answer: three contenders, one clear value pick. Card’s on your display.'; setMode('speaking'); addLine('jarvis', l); window.VERA_SPEAK && window.VERA_SPEAK(l); card('CRM SCAN — SMALL CONSULTANCY', ['Option A — free tier, 2-seat cap, best API', 'Option B — $12/mo, native email sync', 'Option C — $29/mo, overkill until 50+ clients', 'Value pick: Option B — migration path to C is clean']); usage(8400, 620); }],
     [6200, () => setMode('idle')],
     [3000, () => {}],
   ];

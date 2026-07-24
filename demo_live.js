@@ -21,7 +21,10 @@
   input.maxLength = 280;
   const sendBtn = document.createElement('button');
   sendBtn.id = 'send-btn'; sendBtn.type = 'button'; sendBtn.textContent = 'SEND';
-  bar.append(mic, input, sendBtn);
+  const soundBtn = document.createElement('button');
+  soundBtn.id = 'sound-btn'; soundBtn.type = 'button'; soundBtn.textContent = '🔇 SOUND';
+  soundBtn.title = 'Browsers require one click before a page may speak';
+  bar.append(mic, input, sendBtn, soundBtn);
   document.body.appendChild(bar);
 
   const css = document.createElement('style');
@@ -42,6 +45,7 @@
   document.head.appendChild(css);
 
   /* ---- browser voice out (free) ---- */
+  let soundOn = false;
   let voices = [];
   const loadVoices = () => { voices = speechSynthesis.getVoices(); };
   loadVoices();
@@ -59,6 +63,18 @@
     } catch { onDone && onDone(); }
   }
 
+  // The scripted reel (page script) speaks through this — respecting the toggle.
+  window.VERA_SPEAK = (text, onDone) => {
+    if (soundOn) speakAloud(text, onDone);
+    else if (onDone) onDone();
+  };
+  soundBtn.onclick = () => {
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? '🔊 SOUND' : '🔇 SOUND';
+    if (soundOn) speakAloud('Voice enabled. Lovely to be heard.');
+    else speechSynthesis.cancel();
+  };
+
   /* ---- conversation ---- */
   const history = [];
   let busy = false;
@@ -67,6 +83,7 @@
     if (!text || busy) return;
     input.value = '';
     addLine('user', text);
+    if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }  // sending IS the gesture
     if (!API) {
       const line = "The live brain isn't connected on this deployment, sir — you're watching the rehearsal. The production system answers this himself.";
       setMode('speaking'); addLine('jarvis', line);
