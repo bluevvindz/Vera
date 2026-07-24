@@ -107,10 +107,14 @@
       const vs = speechSynthesis.getVoices();
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      const v = vs.find(x => /en-GB/i.test(x.lang) && /sonia|libby|hazel|maisie|female|natural/i.test(x.name))
-        || vs.find(x => /en-GB/i.test(x.lang) && /google/i.test(x.name))
-        || vs.find(x => /en-GB/i.test(x.lang)) || null;
-      if (v) u.voice = v;
+      // Her voice or none: a male/US default is worse than silent text.
+      const en = vs.filter(x => /^en/i.test(x.lang) && !/\bmale\b/i.test(x.name));
+      const v = en.find(x => /sonia|libby|maisie|hazel/i.test(x.name))
+        || en.find(x => /en-GB/i.test(x.lang) && /female/i.test(x.name))
+        || en.find(x => /female|aria|jenny|natasha|samantha|serena|karen|moira|tessa|fiona/i.test(x.name))
+        || null;
+      if (!v) { finish(); return; }
+      u.voice = v;
       u.rate = 1.04; u.pitch = 1.0;
       u.onend = u.onerror = finish;
       speechSynthesis.speak(u);
