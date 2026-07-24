@@ -1,0 +1,80 @@
+/* V.E.R.A. demo wake word — "say Vera" activation (public pages only).
+   One click arms the mic (browser permission), then continuous recognition
+   listens for her name. Chrome/Edge only; pages keep their buttons as the
+   universal path. window.VERA_WAKE.init({onWake}) → controller {pause, resume}. */
+(function () {
+  'use strict';
+  if (!new URLSearchParams(location.search).has('demo')) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;  // no chip where it can't work
+
+  const NAME = /\b(vera|veera|vira|viera|vieira)\b/i;
+
+  window.VERA_WAKE = {
+    init({ onWake }) {
+      const css = document.createElement('style');
+      css.textContent = `
+        #wake-chip { position: fixed; top: 22px; left: 50%; transform: translateX(-50%);
+          z-index: 7; background: rgba(8,22,34,0.85); border: 1px solid rgba(63,217,255,0.5);
+          border-radius: 999px; color: #3fd9ff; font-family: 'Rajdhani', sans-serif;
+          font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase;
+          padding: 8px 20px; cursor: pointer; backdrop-filter: blur(8px); }
+        #wake-chip.armed { animation: wake-pulse 2.2s ease-in-out infinite; }
+        @keyframes wake-pulse {
+          0%, 100% { box-shadow: 0 0 12px rgba(63,217,255,0.25); }
+          50% { box-shadow: 0 0 30px rgba(63,217,255,0.6); } }`;
+      document.head.appendChild(css);
+
+      const chip = document.createElement('button');
+      chip.id = 'wake-chip';
+      chip.textContent = '🎙 Demo mode — click, then say “Vera”';
+      document.body.appendChild(chip);
+
+      let rec = null;
+      let enabled = false;
+      let paused = false;
+
+      function listen() {
+        if (!enabled || paused || rec) return;
+        rec = new SR();
+        rec.lang = 'en-US';
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.onresult = e => {
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            if (NAME.test(e.results[i][0].transcript)) {
+              stop();
+              chip.style.display = 'none';
+              onWake();
+              return;
+            }
+          }
+        };
+        rec.onend = () => { rec = null; setTimeout(listen, 300); };  // keep-alive
+        rec.onerror = ev => {
+          rec = null;
+          if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+            enabled = false;
+            chip.textContent = '🎙 Mic blocked — use the buttons below';
+            chip.classList.remove('armed');
+          } else setTimeout(listen, 800);
+        };
+        try { rec.start(); } catch { rec = null; }
+      }
+      function stop() { paused = true; if (rec) { try { rec.onend = null; rec.stop(); } catch {} rec = null; } }
+
+      chip.onclick = () => {
+        if (enabled) { stop(); chip.style.display = 'none'; onWake(); return; }  // click = wake too
+        enabled = true;
+        chip.textContent = '◉ Listening — say “Vera”';
+        chip.classList.add('armed');
+        listen();
+      };
+
+      return {
+        pause: stop,
+        resume() { paused = false; if (enabled) listen(); },
+      };
+    },
+  };
+})();

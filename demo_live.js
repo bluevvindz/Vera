@@ -150,12 +150,14 @@
 
   /* ---- browser voice in (free, Chrome/Edge) ---- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let captureOnce = null;
   if (!SR) { mic.style.display = 'none'; }
   else {
     let rec = null;
-    mic.onclick = () => {
+    captureOnce = () => {
       if (rec) { rec.stop(); return; }
       takeover();
+      if (wake) wake.pause();  // one recognizer at a time
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
       mic.classList.add('rec'); setMode('listening'); targetLevel = 0.5;
@@ -164,5 +166,17 @@
       rec.onerror = () => { mic.classList.remove('rec'); rec = null; setMode('idle'); };
       rec.start();
     };
+    mic.onclick = captureOnce;
   }
+
+  const wake = window.VERA_WAKE
+    ? window.VERA_WAKE.init({ onWake: () => {
+        if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }
+        takeover();
+        const a = (window.VERA_VOICE || {})['Yes?'];
+        const then = () => { if (captureOnce) captureOnce(); };
+        if (a) { try { const au = new Audio(a); au.onended = then; au.play().catch(then); } catch { then(); } }
+        else then();
+      } })
+    : null;
 })();

@@ -14,5 +14,6 @@ window.VERA_VOICE = {
  "Three items, sir: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.": "voice/reel1.mp3",
  "On the wires now, sir — the short answer: three contenders, one clear value pick. Card’s on your display.": "voice/reel2.mp3",
  "The live brain isn't connected on this deployment, sir — you're watching the rehearsal. The production system answers this himself.": "voice/canned.mp3",
- "Voice enabled. Lovely to be heard.": "voice/soundon.mp3"
+ "Voice enabled. Lovely to be heard.": "voice/soundon.mp3",
+ "Yes?": "voice/wake.mp3"
 };

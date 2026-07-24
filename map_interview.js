@@ -145,12 +145,24 @@
     say(ack, nextQuestion);
   }
 
-  cta.onclick = () => {
+  let started = false;
+  function begin() {
+    if (started) return;
+    started = true;
+    if (wake) wake.pause();
     cta.style.display = 'none';
     bar.style.display = 'flex';
     window.MAP_API.begin();
     say('Splendid. Five questions, and I shall build your map as you answer.', nextQuestion);
-  };
+  }
+  cta.onclick = begin;
+  const wake = window.VERA_WAKE
+    ? window.VERA_WAKE.init({ onWake: () => {
+        const a = (window.VERA_VOICE || {})['Yes?'];
+        if (a) { try { new Audio(a).play().catch(() => {}); } catch {} }
+        setTimeout(begin, 600);
+      } })
+    : null;
   go.onclick = () => answer(input.value);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') answer(input.value); });
 
