@@ -98,11 +98,10 @@
       const vs = speechSynthesis.getVoices();
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      // Her voice or none: a male/US default is worse than silent text.
+      // Neural voices only — a cold robotic stand-in is worse than silent text.
       const en = vs.filter(x => /^en/i.test(x.lang) && !/\bmale\b/i.test(x.name));
-      const v = en.find(x => /sonia|libby|maisie|hazel/i.test(x.name))
-        || en.find(x => /en-GB/i.test(x.lang) && /female/i.test(x.name))
-        || en.find(x => /female|aria|jenny|natasha|samantha|serena|karen|moira|tessa|fiona/i.test(x.name))
+      const v = en.find(x => /online|natural|neural/i.test(x.name) && /sonia|libby|maisie|female|aria|jenny|emma|ava|michelle/i.test(x.name))
+        || en.find(x => /samantha|karen|moira|tessa|fiona/i.test(x.name))
         || null;
       if (!v) { finish(); return; }
       u.voice = v;
@@ -173,7 +172,9 @@
   function nextQuestion() {
     step++;
     if (step >= steps.length) return finale();
-    setTimeout(() => say(steps[step].q, () => { awaiting = true; }), 650);
+    // Accept answers from the moment the question STARTS — people talk over
+    // her, and discarding their words reads as "she can't hear me".
+    setTimeout(() => { awaiting = true; say(steps[step].q); }, 650);
   }
 
   function finale() {
@@ -189,6 +190,8 @@
     if (!text || !awaiting || step < 0 || step >= steps.length) return;
     awaiting = false;
     input.value = '';
+    if (currentAudio) { try { currentAudio.pause(); } catch {} }  // they answered — she yields
+    try { speechSynthesis.cancel(); } catch {}
     jstate = 'thinking';
     if (step === 0) {
       name = text
@@ -257,11 +260,20 @@
     mic.onclick = () => {
       if (rec) { rec.stop(); return; }
       rec = new SR();
-      rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
+      rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
       mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
+      input.value = '';
       input.placeholder = 'Listening — speak now…';
-      rec.onresult = e => answer(e.results[0][0].transcript);
-      rec.onend = () => { micIdle(); rec = null; };
+      rec.onresult = e => {
+        let heard = '';
+        for (let i = 0; i < e.results.length; i++) heard += e.results[i][0].transcript;
+        input.value = heard.trim();  // their words, appearing as they speak
+      };
+      rec.onend = () => {
+        micIdle(); rec = null;
+        const said = input.value.trim();
+        if (said) answer(said);
+      };
       rec.onerror = () => { micIdle(); rec = null; };
       rec.start();
     };

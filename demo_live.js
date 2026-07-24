@@ -107,18 +107,33 @@
       const vs = speechSynthesis.getVoices();
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      // Her voice or none: a male/US default is worse than silent text.
+      // Neural voices only (Edge, Safari, phones). Chrome ships none, and a
+      // cold robotic stand-in is worse than text — scripted lines stay MP3 anywhere.
       const en = vs.filter(x => /^en/i.test(x.lang) && !/\bmale\b/i.test(x.name));
-      const v = en.find(x => /sonia|libby|maisie|hazel/i.test(x.name))
-        || en.find(x => /en-GB/i.test(x.lang) && /female/i.test(x.name))
-        || en.find(x => /female|aria|jenny|natasha|samantha|serena|karen|moira|tessa|fiona/i.test(x.name))
+      const v = en.find(x => /online|natural|neural/i.test(x.name) && /sonia|libby|maisie|female|aria|jenny|emma|ava|michelle/i.test(x.name))
+        || en.find(x => /samantha|karen|moira|tessa|fiona/i.test(x.name))
         || null;
-      if (!v) { finish(); return; }
+      if (!v) { voiceHint(); finish(); return; }
       u.voice = v;
       u.rate = 1.04; u.pitch = 1.0;
       u.onend = u.onerror = finish;
       speechSynthesis.speak(u);
     } catch { finish(); }
+  }
+
+  let hinted = false;
+  function voiceHint() {
+    // This browser can't do her voice justice for live replies — say so once.
+    if (hinted) return;
+    hinted = true;
+    const h = document.createElement('div');
+    h.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:142px;' +
+      'z-index:6;font-family:Rajdhani,sans-serif;font-size:11px;letter-spacing:0.18em;' +
+      'color:rgba(127,184,204,0.8);background:rgba(8,22,34,0.88);padding:5px 14px;' +
+      'border-radius:999px;border:1px solid rgba(63,217,255,0.25)';
+    h.textContent = 'TEXT MODE — FOR HER FULL VOICE ON LIVE REPLIES, OPEN IN MICROSOFT EDGE';
+    document.body.appendChild(h);
+    setTimeout(() => h.remove(), 14000);
   }
 
   // The scripted reel (page script) speaks through this — respecting the toggle.
@@ -203,22 +218,44 @@
       takeover();
       if (wake) { wakeToken++; wake.pause(); }  // one recognizer at a time; kill stale resumes
       rec = new SR();
-      rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
+      rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
       mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
+      input.value = '';
       input.placeholder = 'Listening — speak now…';
       setMode('listening'); targetLevel = 0.5;
-      rec.onresult = e => send(e.results[0][0].transcript);
-      rec.onend = () => { micIdle(); rec = null; if (!busy) setMode('idle'); if (wake) wake.resume(); };
+      rec.onresult = e => {
+        let heard = '';
+        for (let i = 0; i < e.results.length; i++) heard += e.results[i][0].transcript;
+        input.value = heard.trim();  // their words, appearing as they speak
+      };
+      rec.onend = () => {
+        micIdle(); rec = null;
+        const said = input.value.trim();
+        input.value = '';
+        if (said) send(said);
+        else if (!busy) setMode('idle');
+        if (wake) wake.resume();
+      };
       rec.onerror = () => { micIdle(); rec = null; setMode('idle'); };
       rec.start();
     };
     mic.onclick = captureOnce;
   }
 
+  let lastWake = -1e9;
   const wake = window.VERA_WAKE
-    ? window.VERA_WAKE.init({ onWake: () => {
+    ? window.VERA_WAKE.init({ onWake: (cmd) => {
+        const now = performance.now();
+        if (now - lastWake < 3000) { if (wake) wake.resume(); return; }  // no "yes yes yes" parroting
+        lastWake = now;
         if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }
         takeover();
+        cmd = (cmd || '').trim();
+        if (cmd.split(/\s+/).length >= 2) {
+          send(cmd);                       // one breath: "Vera, …" went straight to the brain
+          if (wake) wake.resume();
+          return;
+        }
         const a = (window.VERA_VOICE || {})['Yes?'];
         const then = () => { if (captureOnce) captureOnce(); };
         if (a) { try { const au = new Audio(a); au.onended = then; au.play().catch(then); } catch { then(); } }

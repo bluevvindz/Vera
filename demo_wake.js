@@ -33,24 +33,49 @@
       let rec = null;
       let enabled = false;
       let paused = false;
+      let pendingIdx = null;   // result index where her name was heard
+      let pendingText = '';
+      let pendingTimer = null;
+      let fired = false;
+
+      function fire(transcript) {
+        // One breath: "Vera, what's the weather" → onWake("what's the weather").
+        if (fired) return;
+        fired = true;
+        if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+        pendingIdx = null;
+        stop();
+        chip.style.display = 'none';
+        const parts = String(transcript || '').split(NAME);
+        const cmd = parts.length > 1 ? parts[parts.length - 1].replace(/^[\s,.!?]+/, '').trim() : '';
+        onWake(cmd);
+      }
 
       function listen() {
         if (!enabled || paused || rec) return;
+        pendingIdx = null; pendingText = ''; fired = false;
         rec = new SR();
         rec.lang = 'en-US';
         rec.continuous = true;
         rec.interimResults = true;
         rec.onresult = e => {
           for (let i = e.resultIndex; i < e.results.length; i++) {
-            if (NAME.test(e.results[i][0].transcript)) {
-              stop();
-              chip.style.display = 'none';
-              onWake();
-              return;
+            if (pendingIdx === null && NAME.test(e.results[i][0].transcript)) {
+              pendingIdx = i;  // her name — now catch the rest of the breath
+              pendingTimer = setTimeout(() => fire(pendingText), 2600);
             }
           }
+          if (pendingIdx !== null) {
+            pendingText = '';
+            for (let i = pendingIdx; i < e.results.length; i++) pendingText += e.results[i][0].transcript;
+            if (e.results[e.results.length - 1].isFinal) fire(pendingText);
+          }
         };
-        rec.onend = () => { rec = null; setTimeout(listen, 300); };  // keep-alive
+        rec.onend = () => {
+          rec = null;
+          if (pendingIdx !== null) fire(pendingText);  // recognizer died mid-breath: use what we heard
+          else setTimeout(listen, 300);                // keep-alive
+        };
         rec.onerror = ev => {
           rec = null;
           if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
