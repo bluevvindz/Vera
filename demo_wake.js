@@ -33,7 +33,7 @@
 
       const chip = document.createElement('button');
       chip.id = 'wake-chip';
-      chip.textContent = '🎙 Demo mode — click, then say “Vera”';
+      chip.textContent = '🎙 Demo mode — click, then say “Hey Vera”';
       document.body.appendChild(chip);
 
       let rec = null;
@@ -113,7 +113,7 @@
       function arm() {
         if (enabled) return;
         enabled = true; paused = false;
-        chip.textContent = '◉ Listening — say “Vera”';
+        chip.textContent = '◉ Listening — say “Hey Vera”';
         chip.classList.add('armed');
         listen();
       }
@@ -130,7 +130,7 @@
           paused = false;
           if (!enabled) return;
           chip.style.display = '';  // wake hid it — always-on means it comes back
-          chip.textContent = '◉ Listening — say “Vera”';
+          chip.textContent = '◉ Listening — say “Hey Vera”';
           chip.classList.add('armed');
           listen();
         },

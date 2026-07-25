@@ -34,7 +34,18 @@
     #map-talk .rec { border-color: #3fffc2 !important; color: #3fffc2 !important;
       animation: mic-live 1.1s ease-in-out infinite; }
     @keyframes mic-live { 0%, 100% { box-shadow: 0 0 6px rgba(63,255,194,0.35); }
-      50% { box-shadow: 0 0 22px rgba(63,255,194,0.8); } }`;
+      50% { box-shadow: 0 0 22px rgba(63,255,194,0.8); } }
+    #build-cta.urge { font-size: 17px; padding: 16px 32px;
+      border-color: rgba(63, 217, 255, 0.9);
+      animation: cta-pulse 1.8s ease-in-out infinite; }
+    @keyframes cta-pulse { 0%, 100% { box-shadow: 0 0 18px rgba(63, 217, 255, 0.25); }
+      50% { box-shadow: 0 0 44px rgba(63, 217, 255, 0.7); } }
+    #show-link { position: fixed; left: 50%; transform: translateX(-50%); bottom: 92px;
+      z-index: 6; background: rgba(8, 22, 34, 0.92); border: 1px solid rgba(63, 217, 255, 0.75);
+      border-radius: 6px; color: #3fd9ff; font-family: 'Rajdhani', sans-serif;
+      font-size: 15px; letter-spacing: 0.26em; text-transform: uppercase;
+      padding: 14px 28px; text-decoration: none;
+      animation: cta-pulse 1.8s ease-in-out infinite; }`;
   document.head.appendChild(css);
 
   const cta = document.createElement('button');
@@ -54,7 +65,9 @@
   loadVoices();
   if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
   let currentAudio = null;
-  let soundOn = true;  // 'enter muted' at the gate is honored here too
+  let soundOn = true;   // 'enter muted' at the gate is honored here too
+  let voiceMode = false;  // set once they enter with voice or touch the mic
+  const guided = new URLSearchParams(location.search).has('go');  // she walked them here
   let sayGen = 0;      // bumps on every say() and on interrupts — stale finishes die
   let sayTimer = 0;
   function say(text, onDone) {
@@ -186,7 +199,10 @@
     if (step >= steps.length) return finale();
     // Accept answers from the moment the question STARTS — people talk over
     // her, and discarding their words reads as "she can't hear me".
-    setTimeout(() => { awaiting = true; say(steps[step].q); }, 650);
+    setTimeout(() => {
+      awaiting = true;
+      say(steps[step].q, () => { if (voiceMode) autoListen(); });
+    }, 650);
   }
 
   function finale() {
@@ -195,7 +211,13 @@
     saveBrain();
     say('And there it is — the Seed of your second brain, planted as we spoke. It lives in this browser — and only this browser — and it will remember you when you return. The production system grows one of these from every conversation… and never forgets.',
       () => { jstate = 'idle'; if (wake) wake.resume();
-        window.VERA_INSTALL && window.VERA_INSTALL.offer(); });  // Seed planted = the moment to keep her
+        window.VERA_INSTALL && window.VERA_INSTALL.offer();  // Seed planted = the moment to keep her
+        const s = document.createElement('a');            // …and the show is next, one tap away
+        s.id = 'show-link';
+        s.href = 'reactor.html?demo=1';
+        s.textContent = '◈ Now — the show';
+        document.body.appendChild(s);
+      });
     // The Seed's birth gives their interface its own color — from here on,
     // this visitor's V.E.R.A. is subtly, permanently theirs.
     try {
@@ -292,20 +314,22 @@
   input.addEventListener('keydown', e => { if (e.key === 'Enter') answer(input.value); });
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { mic.style.display = 'none'; }
-  else {
+  const API = (window.DEMO_API || '').trim();
+  const idleHint = input.placeholder;
+  const micIdle = () => {
+    mic.classList.remove('rec'); mic.textContent = '🎙'; input.placeholder = idleHint;
+  };
+  let startSR = null;
+  if (SR) {
     let rec = null;
-    const idleHint = input.placeholder;
-    const micIdle = () => {
-      mic.classList.remove('rec'); mic.textContent = '🎙'; input.placeholder = idleHint;
-    };
     let cancelled = false;
-    mic.onclick = () => {
+    startSR = () => {
       if (rec) {  // second tap = cancel; their typed draft survives
         cancelled = true;
         try { rec.abort(); } catch { try { rec.stop(); } catch {} }
         return;
       }
+      voiceMode = true;
       cancelled = false;
       const draft = input.value;
       rec = new SR();
@@ -329,9 +353,126 @@
     };
   }
 
+  /* ---- server ears (worker /hear): iPhones and Firefox ship no speech
+     recognition, and the interview must not depend on typing there. One
+     permission, kept warm; auto mode self-endpoints with a 3-second pause. */
+  const canRecord = !!(API && navigator.mediaDevices && navigator.mediaDevices.getUserMedia
+    && (window.AudioContext || window.webkitAudioContext));
+  let recStream = null, recCtx = null, recSrcNode = null, recording = null;
+  async function ensureEars() {
+    if (recStream && recStream.getTracks().some(t => t.readyState === 'live')) return true;
+    try { recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { recStream = null; return false; }
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!recCtx) recCtx = new Ctx();
+    recSrcNode = recCtx.createMediaStreamSource(recStream);
+    return true;
+  }
+  function b64FromBuf(buf) {
+    const bytes = new Uint8Array(buf);
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000)
+      s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function wavFrom(chunks, sourceRate) {
+    let len = 0; for (const c of chunks) len += c.length;
+    const flat = new Float32Array(len);
+    let o = 0; for (const c of chunks) { flat.set(c, o); o += c.length; }
+    const OUT = 16000;
+    const ratio = sourceRate / OUT;
+    const n = Math.floor(flat.length / ratio);
+    const buf = new ArrayBuffer(44 + n * 2);
+    const dv = new DataView(buf);
+    const w = (off, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt ');
+    dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, OUT, true); dv.setUint32(28, OUT * 2, true);
+    dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+    w(36, 'data'); dv.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) {
+      const v = Math.max(-1, Math.min(1, flat[Math.floor(i * ratio)]));
+      dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+    }
+    return buf;
+  }
+  async function listenOnce(auto) {
+    if (recording) return;
+    voiceMode = true;
+    if (!(await ensureEars())) return;
+    if (recCtx.state === 'suspended') { try { await recCtx.resume(); } catch {} }
+    const node = recCtx.createScriptProcessor(4096, 1, 1);
+    const chunks = [];
+    const r2 = { node, chunks, rate: recCtx.sampleRate, auto: !!auto, spoke: false, quietMs: 0,
+      timer: setTimeout(hearFinish, 14000) };
+    node.onaudioprocess = e => {
+      const d = e.inputBuffer.getChannelData(0);
+      chunks.push(new Float32Array(d));
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 8) sum += d[i] * d[i];
+      const rms = Math.sqrt(sum / (d.length / 8));
+      const frameMs = (d.length / r2.rate) * 1000;
+      if (rms > 0.015) { r2.spoke = true; r2.quietMs = 0; }
+      else r2.quietMs += frameMs;
+      // A real thinking pause: three seconds, not a nervous one.
+      if ((r2.spoke && r2.quietMs > 3200) || (!r2.spoke && r2.quietMs > 7000)) hearFinish();
+    };
+    recSrcNode.connect(node); node.connect(recCtx.destination);
+    recording = r2;
+    mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
+    input.value = '';
+    input.placeholder = auto ? 'Go on — she’s listening…' : 'Listening — speak, then pause…';
+  }
+  async function hearFinish() {
+    if (!recording) return;
+    const r = recording;
+    recording = null;
+    clearTimeout(r.timer);
+    try { recSrcNode.disconnect(r.node); } catch {}
+    try { r.node.disconnect(); } catch {}
+    micIdle();
+    let total = 0; for (const c of r.chunks) total += c.length;
+    if (!r.spoke || total < r.rate * 0.4) return;  // silence — wait for them
+    input.placeholder = 'On the wires…';
+    try {
+      const resp = await fetch(API + '/hear', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ audio: b64FromBuf(wavFrom(r.chunks, r.rate)) }),
+      });
+      const d = await resp.json().catch(() => null);
+      input.placeholder = idleHint;
+      if (d && d.heard) { input.value = d.heard; answer(d.heard); return; }
+      input.placeholder = 'Didn’t catch that — tap the mic, or type';
+    } catch { input.placeholder = idleHint; }
+  }
+
+  // Hands-free chain: once they've used voice, each question reopens the mic
+  // by itself — no button between answers.
+  function autoListen() {
+    if (!voiceMode) return;
+    if (startSR) startSR();
+    else if (canRecord) listenOnce(true);
+  }
+
+  if (startSR) mic.onclick = startSR;
+  else if (canRecord) mic.onclick = () => (recording ? hearFinish() : listenOnce(false));
+  else mic.style.display = 'none';
+
   // Entry gate: voice choice arms the name-listener; muted stays truly silent.
+  // Guided muted arrivals start the interview instantly (no audio to bless);
+  // guided voiced arrivals get the pulsing one-tap invitation instead.
   if (window.VERA_ENTRY) window.VERA_ENTRY.onDone(voice => {
     soundOn = voice;
+    voiceMode = voice;
     if (voice && wake) wake.arm();
+    if (guided && !voice && !started) begin();
   });
+
+  if (guided && !started) {
+    cta.classList.add('urge');
+    cta.textContent = '◈ Introduce yourself — 2 min';
+    qEl.textContent = 'She’d like to meet you — one tap.';
+    qEl.style.display = 'block';
+  }
 })();

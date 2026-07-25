@@ -20,6 +20,7 @@ window.VERA_VOICE = {
  "A vitals monitor, because one must look after one’s principal.": "voice/hub3.mp3",
  "And there it is — a working hub, assembled from scratch while we spoke. Say my name, and I shall build one for you.": "voice/hub4.mp3",
  "The stage is yours. Say my name, or simply type — and we shall build something of your own.": "voice/stage.mp3",
+ "First, let's get acquainted — introduce yourself, and watch me grow your second brain, live.": "voice/tour.mp3",
  "Voice enabled. Lovely to be heard.": "voice/soundon.mp3",
  "Yes?": "voice/wake.mp3",
  "Welcome. I'm Vera — say my name any time you need me.": "voice/welcome.mp3",

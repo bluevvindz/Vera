@@ -412,7 +412,8 @@
       const frameMs = (d.length / rec.rate) * 1000;
       if (rms > 0.015) { rec.spoke = true; rec.quietMs = 0; }
       else rec.quietMs += frameMs;
-      if ((rec.spoke && rec.quietMs > 1300) || (!rec.spoke && rec.quietMs > 5000)) recordFinish();
+      // People think mid-sentence: give them a real 3-second breath.
+      if ((rec.spoke && rec.quietMs > 3200) || (!rec.spoke && rec.quietMs > 7000)) recordFinish();
     };
     recSrcNode.connect(node); node.connect(recCtx.destination);
     recording = rec;
@@ -574,10 +575,19 @@
     });
   }
 
-  // Entry gate: one click on "Enter with voice" = sound on + wake word armed.
+  // Entry gate: one click = sound on + wake armed. Strangers get GUIDED:
+  // no Seed yet → she walks them to the live profile creation herself. The
+  // demo never depends on anyone discovering the Brain Map link.
   if (window.VERA_ENTRY) window.VERA_ENTRY.onDone(voice => {
+    if (voice && !soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }
+    if (!window.VERA_SEED && window.VERA_ENTRY.fresh) {
+      takeover();  // the reel yields — introductions come first
+      const go = () => { location.href = 'map.html?demo=1&go=1'; };
+      if (voice) speakAloud("First, let's get acquainted — introduce yourself, and watch me grow your second brain, live.", go);
+      else setTimeout(go, 900);
+      return;
+    }
     if (!voice) return;
-    if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }
     if (wake) wake.arm();
     if (window.VERA_ENTRY.fresh) speakAloud("Welcome. I'm Vera — say my name any time you need me.");
   });

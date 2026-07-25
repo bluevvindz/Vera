@@ -77,7 +77,7 @@
   // all (WebKit/Gecko ship no speech recognition) — never promise "say Vera".
   const hasSR = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   const how = hasSR
-    ? 'Sound on, mic on — then just say “Vera” out loud, any time.'
+    ? 'Sound on, mic on — then just say “Hey Vera” out loud, any time.'
     : 'Sound on — tap the mic any time to speak with her.';
   gate.innerHTML = `
     <div class="g-title">DEMO MODE</div>
