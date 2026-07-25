@@ -64,6 +64,9 @@
       font-family: inherit; font-size: 11px; letter-spacing: 0.26em;
       text-transform: uppercase; cursor: pointer; margin-top: 6px;
       text-decoration: underline; text-underline-offset: 4px; }
+    #vera-gate .g-cap { font-size: 10px; letter-spacing: 0.2em; line-height: 1.8;
+      text-transform: uppercase; color: rgba(127,184,204,0.45);
+      max-width: 500px; margin-top: 10px; }
     @keyframes g-pulse { 0%, 100% { filter: brightness(0.92); }
       50% { filter: brightness(1.15); } }
     @media (max-width: 640px) {
@@ -86,7 +89,9 @@
     <div class="g-hint">${how}<br>
       Your browser asks for the microphone once. After the show, install her
       for the smoothest repeat runs.</div>
-    <button class="g-mute" type="button">enter muted</button>`;
+    <button class="g-mute" type="button">enter muted</button>
+    <div class="g-cap">Public working model — capabilities deliberately limited.<br>
+      The production system runs privately, with full tools and memory.</div>`;
   document.body.appendChild(gate);
   if (window.VERA_SEED)  // returning Seed-holder: she remembers (textContent — never markup)
     gate.querySelector('.g-sub').textContent =
