@@ -153,7 +153,11 @@
     { q: 'And how do you recharge?', handle(ans) {
         window.MAP_API.add('recharge', ans, 'note', ['you']);
         return 'Essential maintenance — noted.'; } },
+    { q: 'Last one — how are you actually doing today?', handle(ans) {
+        checkins.push({ at: Date.now(), note: ans.slice(0, 140) });
+        return 'Noted — and thank you for telling me the truth.'; } },
   ];
+  const checkins = [];  // the daily check-in: care as the product
   let step = -1;
   let name = 'friend';
   let awaiting = false;  // only accept answers once the current question is fully asked
@@ -162,10 +166,14 @@
   const KEY = 'vera_brain_v1';
   function saveBrain() {
     try {
+      let prior = [];
+      try { prior = (JSON.parse(localStorage.getItem(KEY) || 'null') || {}).checkins || []; } catch {}
       localStorage.setItem(KEY, JSON.stringify({
+        v: 1,
         name,
         nodes: nodes.map(n => ({ id: n.id, label: n.label, type: n.type })),
         edges: edges.map(e => [e.a.id, e.b.id]),
+        checkins: prior.concat(checkins).slice(-5),
       }));
     } catch { /* private mode etc. — gracefully tab-only */ }
   }
@@ -217,6 +225,7 @@
         s.href = 'reactor.html?demo=1';
         s.textContent = '◈ Now — the show';
         document.body.appendChild(s);
+        joinBox();  // the peak of delight is when you ask
       });
     // The Seed's birth gives their interface its own color — from here on,
     // this visitor's V.E.R.A. is subtly, permanently theirs.
@@ -458,6 +467,47 @@
   if (startSR) mic.onclick = startSR;
   else if (canRecord) mic.onclick = () => (recording ? hearFinish() : listenOnce(false));
   else mic.style.display = 'none';
+
+  // Early-access capture — shown once the Seed is planted. Degrades politely
+  // if the worker has no SIGNUPS storage yet.
+  function joinBox() {
+    if (document.getElementById('join-box')) return;
+    const box = document.createElement('div');
+    box.id = 'join-box';
+    box.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:34px;' +
+      'z-index:6;display:flex;gap:6px;align-items:center;background:rgba(8,22,34,0.92);' +
+      'border:1px solid rgba(63,217,255,0.35);border-radius:6px;padding:7px 8px;' +
+      'font-family:Rajdhani,sans-serif;max-width:92vw';
+    const em = document.createElement('input');
+    em.type = 'email'; em.placeholder = 'email — early access to the full her';
+    em.maxLength = 120;
+    em.style.cssText = 'background:none;border:none;outline:none;color:#eaf6fb;' +
+      'font-family:inherit;font-size:13px;width:230px;max-width:52vw';
+    const jb = document.createElement('button');
+    jb.type = 'button'; jb.textContent = 'JOIN';
+    jb.style.cssText = 'background:none;border:1px solid rgba(63,217,255,0.5);border-radius:4px;' +
+      'color:#3fd9ff;font-family:inherit;font-size:11px;letter-spacing:0.2em;' +
+      'padding:5px 12px;cursor:pointer';
+    jb.onclick = async () => {
+      const v = em.value.trim();
+      if (!v) { em.focus(); return; }
+      jb.disabled = true;
+      try {
+        const r = await fetch(API + '/join', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: v }),
+        });
+        box.textContent = r.ok ? '✦ You’re on the list.'
+          : (r.status === 501 ? '✦ Early access opens soon.' : 'Try that once more?');
+        if (!r.ok && r.status !== 501) setTimeout(() => location.reload(), 1500);
+      } catch { box.textContent = 'The wires hiccuped — try again later.'; }
+      box.style.color = '#9fc3d2'; box.style.fontSize = '12px';
+      box.style.letterSpacing = '0.18em'; box.style.padding = '10px 16px';
+    };
+    box.append(em, jb);
+    document.body.appendChild(box);
+  }
 
   // Entry gate: voice choice arms the name-listener; muted stays truly silent.
   // Guided muted arrivals start the interview instantly (no audio to bless);

@@ -238,6 +238,8 @@
     if (!text) return;
     if (busy) { pendingSend = text; return; }  // queued, not swallowed
     takeover();
+    primeWeather();
+    recordCheckin(text);
     input.value = '';
     addLine('user', text);
     if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }  // sending IS the gesture
@@ -445,6 +447,7 @@
 
   async function sendVoice(wavBuf) {
     busy = true;
+    primeWeather();
     setMode('thinking');
     input.placeholder = 'On the wires…';
     let d = null;
@@ -475,7 +478,7 @@
       const line = 'The uplink hiccuped. Once more, if you please.';
       addLine('jarvis', line); speakAloud(line, resume); return;
     }
-    if (d.heard) { addLine('user', d.heard); history.push({ role: 'user', content: d.heard }); }
+    if (d.heard) { recordCheckin(d.heard); addLine('user', d.heard); history.push({ role: 'user', content: d.heard }); }
     history.push({ role: 'assistant', content: d.reply });
     setMode('speaking');
     addLine('jarvis', d.reply);
@@ -546,14 +549,65 @@
 
   // A returning Seed-holder is KNOWN: prime her memory invisibly so the live
   // brain greets them as a person, not a stranger. Never rendered on screen.
+  let checkinPending = false;
   if (window.VERA_SEED && API) {
     const s = window.VERA_SEED;
     const facts = s.nodes.filter(n => n.type !== 'router')
       .map(n => `${n.id}: ${n.label}`).join('; ');
+    let care = '';
+    try {
+      const raw = JSON.parse(localStorage.getItem('vera_brain_v1') || 'null');
+      const last = raw && raw.checkins && raw.checkins[raw.checkins.length - 1];
+      if (last) {
+        const days = Math.max(0, Math.round((Date.now() - last.at) / 86400000));
+        care = ` Their last check-in (${days === 0 ? 'earlier today' : days + ' day(s) ago'}): "${last.note}". If they tell you how they're doing, respond with warmth and continuity against that.`;
+      }
+    } catch {}
     history.push(
-      { role: 'user', content: `(Private context — never quote it verbatim: I'm ${s.name}, a returning visitor. My seed map: ${facts || 'just planted'}. Greet me by name when I engage.)` },
+      { role: 'user', content: `(Private context — never quote it verbatim: I'm ${s.name}, a returning visitor. My seed map: ${facts || 'just planted'}.${care} Greet me by name when I engage.)` },
       { role: 'assistant', content: 'Noted with pleasure.' },
     );
+  }
+
+  // Weather-awareness, only when geolocation was ALREADY granted — never a
+  // new permission prompt for ambience.
+  let weatherLine = '';
+  let weatherPrimed = false;
+  (async () => {
+    try {
+      if (!API || !navigator.permissions || !navigator.geolocation) return;
+      const p = await navigator.permissions.query({ name: 'geolocation' });
+      if (p.state !== 'granted') return;
+      navigator.geolocation.getCurrentPosition(async pos => {
+        try {
+          const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' +
+            pos.coords.latitude + '&longitude=' + pos.coords.longitude + '&current_weather=true');
+          const d = await r.json();
+          if (d.current_weather)
+            weatherLine = `Local weather where the visitor is right now: ${Math.round(d.current_weather.temperature)}°C, weather code ${d.current_weather.weathercode}, wind ${Math.round(d.current_weather.windspeed)} km/h.`;
+        } catch { /* ambience only */ }
+      }, () => {}, { maximumAge: 600000, timeout: 5000 });
+    } catch { /* ambience only */ }
+  })();
+  function primeWeather() {
+    if (!weatherLine || weatherPrimed) return;
+    weatherPrimed = true;
+    history.push(
+      { role: 'user', content: `(Private context: ${weatherLine} Reference it naturally if it fits — never as a data dump.)` },
+      { role: 'assistant', content: 'Noted.' },
+    );
+  }
+  function recordCheckin(text) {
+    if (!checkinPending) return;
+    checkinPending = false;
+    try {
+      const s = JSON.parse(localStorage.getItem('vera_brain_v1') || 'null');
+      if (!s) return;
+      (s.checkins = s.checkins || []).push({ at: Date.now(), note: String(text).slice(0, 140) });
+      s.checkins = s.checkins.slice(-5);
+      s.v = 1;
+      localStorage.setItem('vera_brain_v1', JSON.stringify(s));
+    } catch { /* device-local best effort */ }
   }
 
   // Devices without browser speech recognition (every iPhone browser,
@@ -585,6 +639,24 @@
       const go = () => { location.href = 'map.html?demo=1&go=1'; };
       if (voice) speakAloud("First, let's get acquainted — introduce yourself, and watch me grow your second brain, live.", go);
       else setTimeout(go, 900);
+      return;
+    }
+    if (window.VERA_SEED && window.VERA_ENTRY.fresh && API) {
+      // The Daily Check-In: a returning friend gets asked how they ARE.
+      checkinPending = true;
+      takeover();
+      const openEars = () => {
+        if (canRecord && earsServer) recToggle(true);
+        else if (captureOnce) captureOnce();
+        else input.focus();
+      };
+      if (voice) {
+        if (wake) wake.arm();
+        speakAloud('Welcome back. Before anything else — how are you, really?', openEars);
+      } else {
+        addLine('jarvis', 'Welcome back. Before anything else — how are you, really?');
+        input.focus();
+      }
       return;
     }
     if (!voice) return;
