@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>V.E.R.A. — Adventure Mode</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#02060c">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="demo_config.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { min-height: 100vh; background: #02060c; color: #cfe4ec;
+    font-family: 'Rajdhani', 'Segoe UI', sans-serif; padding: 24px 16px 120px;
+    background-image: radial-gradient(ellipse at 50% 0%, rgba(20,60,85,0.3) 0%, transparent 55%); }
+  .stars { position: fixed; inset: 0; pointer-events: none; }
+  .stars i { position: absolute; width: 2px; height: 2px; border-radius: 50%;
+    background: rgba(190,235,255,0.5); animation: tw 3.4s ease-in-out infinite; }
+  @keyframes tw { 50% { opacity: 0.15; } }
+  header { text-align: center; margin-bottom: 20px; }
+  header h1 { color: #3fd9ff; letter-spacing: 0.3em; font-size: 20px;
+    text-shadow: 0 0 22px rgba(63,217,255,0.5); }
+  header .sub { font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: rgba(127,184,204,0.55); margin-top: 6px; }
+  #menu { max-width: 560px; margin: 8vh auto 0; text-align: center; }
+  #menu p { font-size: 16px; line-height: 1.7; color: #9fc3d2; margin-bottom: 26px; }
+  .btn { display: inline-block; background: rgba(8,22,34,0.9);
+    border: 1px solid rgba(63,217,255,0.55); border-radius: 6px; color: #3fd9ff;
+    font-family: inherit; font-size: 14px; letter-spacing: 0.24em;
+    text-transform: uppercase; padding: 14px 26px; cursor: pointer; margin: 6px; }
+  .btn:hover { background: rgba(63,217,255,0.12); }
+  .btn.dim { border-color: rgba(127,184,204,0.3); color: rgba(127,184,204,0.7);
+    font-size: 11px; padding: 9px 16px; }
+  #table { display: none; max-width: 720px; margin: 0 auto; }
+  #story { display: flex; flex-direction: column; gap: 14px; }
+  #story .dm { font-size: 16.5px; line-height: 1.75; color: #e6f2f8;
+    border-left: 2px solid rgba(63,217,255,0.45); padding-left: 14px; }
+  #story .dm::before { content: '✦ '; color: rgba(63,217,255,0.7); }
+  #story .you { font-size: 15px; line-height: 1.6; color: #7fb8cc;
+    font-style: italic; padding-left: 14px; }
+  #weaving { display: none; font-size: 11px; letter-spacing: 0.3em;
+    text-transform: uppercase; color: rgba(63,217,255,0.6); padding: 14px;
+    animation: tw 1.4s ease-in-out infinite; }
+  #bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px;
+    display: none; gap: 8px; width: min(720px, calc(100vw - 20px));
+    background: rgba(6,16,26,0.96); border: 1px solid rgba(63,217,255,0.4);
+    border-radius: 6px; padding: 8px; z-index: 5; }
+  #bar input { flex: 1; min-width: 0; background: none; border: none; outline: none;
+    color: #eaf6fb; font-family: inherit; font-size: 15px; }
+  #bar button { background: none; border: 1px solid rgba(63,217,255,0.45);
+    border-radius: 4px; color: #3fd9ff; font-family: inherit; font-size: 12px;
+    letter-spacing: 0.14em; padding: 6px 11px; cursor: pointer; white-space: nowrap; }
+  #bar button:hover { background: rgba(63,217,255,0.12); }
+  footer { position: fixed; left: 0; right: 0; bottom: 74px; text-align: center;
+    font-size: 9.5px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(127,184,204,0.35); pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+<header>
+  <h1>ADVENTURE MODE</h1>
+  <div class="sub">V.E.R.A. is your Dungeon Master · demo — full campaigns live in the app</div>
+</header>
+
+<div id="menu">
+  <p>One player or a whole party passing the phone. She narrates in her own
+  voice, your choices steer the tale, and the campaign waits in this browser
+  for your return. No one has to sit behind the screen — she loves it there.</p>
+  <button class="btn" id="new-btn">◈ New adventure</button>
+  <button class="btn" id="resume-btn" style="display:none">◈ Continue the tale</button>
+  <div style="margin-top:18px">
+    <a class="btn dim" href="index.html">← the foyer</a>
+    <button class="btn dim" id="sound-btn" type="button">🔊 voice on</button>
+  </div>
+</div>
+
+<div id="table">
+  <div id="story"></div>
+  <div id="weaving">the dungeon master is weaving…</div>
+</div>
+<footer>a story between you and her · pg-13 · she trusts your dice</footer>
+<div id="bar">
+  <input id="say" maxlength="300" placeholder="What do you do?">
+  <button id="send-btn" type="button">SEND</button>
+  <button id="roll-btn" type="button" title="An honest d20 — the page rolls it">🎲 d20</button>
+  <button id="tale-btn" type="button" title="Download the story so far">📜</button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var API = (window.DEMO_API || '').trim();
+  var KEY = 'vera_campaign_v1';
+  var history = [];
+  var busy = false;
+  var soundOn = true;
+  var audioEl = null;
+
+  var stars = document.getElementById('stars');
+  for (var i = 0; i < 40; i++) {
+    var s = document.createElement('i');
+    s.style.left = (Math.random() * 100) + 'vw';
+    s.style.top = (Math.random() * 100) + 'vh';
+    s.style.animationDelay = (Math.random() * 3) + 's';
+    stars.appendChild(s);
+  }
+
+  var menu = document.getElementById('menu');
+  var table = document.getElementById('table');
+  var story = document.getElementById('story');
+  var weaving = document.getElementById('weaving');
+  var bar = document.getElementById('bar');
+  var input = document.getElementById('say');
+
+  var seedName = '';
+  try {
+    var seed = JSON.parse(localStorage.getItem('vera_brain_v1') || 'null');
+    if (seed && seed.name) seedName = seed.name;
+  } catch (e) {}
+
+  function bless() {
+    if (audioEl) return;
+    audioEl = new Audio();
+    audioEl.playsInline = true;
+    audioEl.setAttribute('playsinline', '');
+  }
+  function say(text) {
+    if (!soundOn || !API || !audioEl) return;
+    fetch(API + '/speak', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: String(text).slice(0, 1250) })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.audio || !soundOn) return;
+      var mime = d.audio.indexOf('UklGR') === 0 ? 'audio/wav' : 'audio/mpeg';
+      audioEl.src = 'data:' + mime + ';base64,' + d.audio;
+      audioEl.play().catch(function () {});
+    }).catch(function () {});
+  }
+
+  function add(who, text) {
+    var p = document.createElement('p');
+    p.className = who;
+    p.textContent = who === 'you' ? '— ' + text : text;
+    story.appendChild(p);
+    p.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ history: history.slice(-40), at: Date.now() }));
+    } catch (e) {}
+  }
+
+  function sendTurn(text, hidden) {
+    text = (text || '').trim();
+    if (!text || busy) return;
+    busy = true;
+    if (!hidden) { add('you', text); }
+    input.value = '';
+    history.push({ role: 'user', content: text });
+    weaving.style.display = 'block';
+    fetch(API, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages: history.slice(-16), mode: 'dm' })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      var reply = d.reply || 'The mists swallow your words — the uplink hiccuped. Try that again.';
+      history.push({ role: 'assistant', content: reply });
+      add('dm', reply);
+      save();
+      say(reply);
+    }).catch(function () {
+      add('dm', 'The connection to the realm flickered. Say that once more.');
+      history.pop();
+    }).finally(function () {
+      weaving.style.display = 'none';
+      busy = false;
+      input.focus();
+    });
+  }
+
+  function toTable() {
+    menu.style.display = 'none';
+    table.style.display = 'block';
+    bar.style.display = 'flex';
+    input.focus();
+  }
+
+  document.getElementById('new-btn').onclick = function () {
+    bless();
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    history = [];
+    story.replaceChildren();
+    toTable();
+    sendTurn('Begin a brand new adventure.' + (seedName ? " The player's name is " + seedName + '.' : '') +
+      ' Ask one question about my hero, offer three flavors of adventure, then start us at a hook.', true);
+  };
+
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  if (saved && saved.history && saved.history.length) {
+    var rbtn = document.getElementById('resume-btn');
+    rbtn.style.display = 'inline-block';
+    rbtn.onclick = function () {
+      bless();
+      history = saved.history;
+      story.replaceChildren();
+      for (var j = 0; j < history.length; j++) {
+        if (j === 0) continue;
+        add(history[j].role === 'user' ? 'you' : 'dm', history[j].content);
+      }
+      toTable();
+      sendTurn('(Recap the story so far in three short sentences, in character, then ask what I do next.)', true);
+    };
+  }
+
+  document.getElementById('send-btn').onclick = function () { sendTurn(input.value); };
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendTurn(input.value); });
+
+  document.getElementById('roll-btn').onclick = function () {
+    var n = 1 + Math.floor(Math.random() * 20);
+    sendTurn('I roll the d20… it lands on ' + n + '.');
+  };
+
+  document.getElementById('tale-btn').onclick = function () {
+    var lines = [];
+    for (var k = 0; k < history.length; k++) {
+      if (k === 0) continue;
+      lines.push((history[k].role === 'user' ? 'YOU: ' : 'DM:  ') + history[k].content);
+    }
+    var blob = new Blob([lines.join('\n\n')], { type: 'text/plain' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'vera-adventure.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  document.getElementById('sound-btn').onclick = function () {
+    soundOn = !soundOn;
+    this.textContent = soundOn ? '🔊 voice on' : '🔇 voice off';
+    if (!soundOn && audioEl) { try { audioEl.pause(); } catch (e) {} }
+  };
+})();
+</script>
+<script src="demo_pwa.js"></script>
+</body>
+</html>
