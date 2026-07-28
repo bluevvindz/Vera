@@ -93,9 +93,15 @@
     <div class="g-cap">Public working model — capabilities deliberately limited.<br>
       The production system runs privately, with full tools and memory.</div>`;
   document.body.appendChild(gate);
-  if (window.VERA_SEED)  // returning Seed-holder: she remembers (textContent — never markup)
-    gate.querySelector('.g-sub').textContent =
-      'Welcome back, ' + window.VERA_SEED.name + ' — she remembers';
+  if (window.VERA_SEED) {  // returning Seed-holder: she remembers (textContent — never markup)
+    // Pronoun/placeholder "names" (a mis-answered interview) read as broken —
+    // greet namelessly rather than say "Welcome back, You".
+    const n = String(window.VERA_SEED.name || '').trim();
+    const bad = /^(you|me|user|friend|human|sir|madam|vera|anon|anonymous|nobody)$/i.test(n);
+    gate.querySelector('.g-sub').textContent = bad || !n
+      ? 'Welcome back — she remembers'
+      : 'Welcome back, ' + n + ' — she remembers';
+  }
 
   function close(voice) {
     // iOS WebKit (ALL iPhone browsers, Chrome included) only lets audio play
@@ -106,10 +112,13 @@
         const el = new Audio();
         el.playsInline = true;
         el.setAttribute('playsinline', '');
+        // iOS IGNORES the volume property — muted is the only real gag. Without
+        // it, iPhones speak the blessing file ("Yes?") out loud at the gate.
+        el.muted = true;
         el.volume = 0;
         el.src = 'voice/wake.mp3';
-        el.play().then(() => { el.pause(); el.volume = 1; el.currentTime = 0; })
-          .catch(() => { el.volume = 1; });
+        el.play().then(() => { el.pause(); el.muted = false; el.volume = 1; el.currentTime = 0; })
+          .catch(() => { el.muted = false; el.volume = 1; });
         window.VERA_AUDIO_EL = el;
       }
       if (voice && 'speechSynthesis' in window) {

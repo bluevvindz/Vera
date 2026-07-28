@@ -49,7 +49,7 @@
   document.head.appendChild(css);
 
   const cta = document.createElement('button');
-  cta.id = 'build-cta'; cta.textContent = '◈ Plant your Seed — 2 min';
+  cta.id = 'build-cta'; cta.textContent = '◈ Map your second brain — 2 min';
   const qEl = document.createElement('div'); qEl.id = 'vera-q';
   const bar = document.createElement('div'); bar.id = 'map-talk';
   const mic = document.createElement('button'); mic.textContent = '🎙'; mic.type = 'button';
@@ -218,7 +218,7 @@
     bar.style.display = 'none';
     window.MAP_API.focus('you');
     saveBrain();
-    say('And there it is — the Seed of your second brain, planted as we spoke. It lives in this browser — and only this browser — and it will remember you when you return. The production system grows one of these from every conversation… and never forgets.',
+    say('And there it is — your second brain, mapped as we spoke. It lives in this browser — and only this browser — and it will remember you when you return. The production system grows one of these from every conversation… and never forgets.',
       () => { jstate = 'idle'; if (wake) wake.resume();
         window.VERA_INSTALL && window.VERA_INSTALL.offer();  // Seed planted = the moment to keep her
         const s = document.createElement('a');            // …and the show is next, one tap away
@@ -249,8 +249,10 @@
     if (step === 0) {
       name = text
         .replace(/^(hi|hello|hey)[,!\s]+/i, '')
-        .replace(/^(i am|i'm|im|my name is|it's|its|call me|name's|the name is)\s+/i, '')
+        .replace(/^(you (can|may) call me|just call me|please call me|everyone calls me|they call me|people call me|i am|i'm|im|my name is|it's|its|call me|name's|the name is)\s+/i, '')
         .split(/\s+/)[0].replace(/[^\p{L}\p{N}'-]/gu, '').slice(0, 20) || 'friend';
+      // A pronoun that survived the stripping is not a name.
+      if (/^(you|me|user|human|sir|madam|vera|anon|anonymous|nobody)$/i.test(name)) name = 'friend';
       name = name.charAt(0).toUpperCase() + name.slice(1);
     }
     const ack = steps[step].handle(text, name);
@@ -305,7 +307,7 @@
           if (!started) { begin(); return; }
           // Returning visitor: a voice summon must NEVER wipe their saved
           // Seed — that is exclusively the labeled replant button's job.
-          qEl.textContent = 'Your Seed stands. The replant button below starts fresh.';
+          qEl.textContent = 'Your map stands. The rebuild button below starts fresh.';
           qEl.style.display = 'block';
           if (wake) wake.resume();
         }, 600);
@@ -316,7 +318,7 @@
   const saved = loadSaved();
   if (saved) {
     restore(saved);
-    cta.textContent = '◈ Replant your Seed — 2 min';
+    cta.textContent = '◈ Rebuild your map — 2 min';
     qEl.textContent = 'Back again? Your Seed — precisely as you left it, and it remembers you.';
     qEl.style.display = 'block';
   }

@@ -185,7 +185,16 @@
      entry in build_demo.py — the exact-string law of her baked voice. */
   function cues(o) {
     const name = String(o.name || '').trim().toUpperCase();
-    const hub = n => () => { if (window.VERA_HUB) window.VERA_HUB.show(n); };
+    const hub = n => () => {
+      if (!window.VERA_HUB) return;
+      window.VERA_HUB.show(n);
+      // Phones dock panels in a horizontal row — follow the build, or the
+      // audience only ever sees the first panel of the show.
+      const dock = document.getElementById('hub-dock');
+      const el = document.getElementById('hub-' + n);
+      if (dock && el && dock.scrollWidth > dock.clientWidth)
+        dock.scrollTo({ left: Math.max(0, el.offsetLeft - 12), behavior: 'smooth' });
+    };
     return [
       { t: 550,   line: name ? 'IDENTITY — ' + name + ' · VERIFIED' : 'IDENTITY — CONFIRMED' },
       { t: 1700,  line: 'RECONSTRUCTING BRAIN MAP — ' + (o.nodes || 0) + ' NODES ONLINE' },

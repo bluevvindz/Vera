@@ -685,7 +685,10 @@
           // The cold open: score up, status ticker, her voice over the top.
           // Their OWN name — the one they gave her in the interview. Only a
           // Seed with no usable name gets the plain (still epic) greeting.
-          const known = s.name && s.name.toLowerCase() !== 'friend' ? s.name : '';
+          // Pronouns and placeholders are not names — "Welcome back, You."
+          // sounds broken; those Seeds get the plain greeting instead.
+          const BAD_NAME = /^(you|me|user|friend|human|sir|madam|vera|anon|anonymous|nobody)$/i;
+          const known = s.name && !BAD_NAME.test(String(s.name).trim()) ? s.name : '';
           // Negotiate the mic NOW, on the dark stage: every browser prompt
           // ("allow microphone?", the OS ask, the granted banner) lands before
           // the show begins — never over it. The montage holds until settled,
