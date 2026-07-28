@@ -67,7 +67,9 @@
   let currentAudio = null;
   let soundOn = true;   // 'enter muted' at the gate is honored here too
   let voiceMode = false;  // set once they enter with voice or touch the mic
-  const guided = new URLSearchParams(location.search).has('go');  // she walked them here
+  const guided = new URLSearchParams(location.search).has('go');    // she walked them here
+  const growing = new URLSearchParams(location.search).has('grow'); // returning: one question, map grows
+  let growSession = false;
   let sayGen = 0;      // bumps on every say() and on interrupts — stale finishes die
   let sayTimer = 0;
   function say(text, onDone) {
@@ -214,7 +216,12 @@
      stars bloom mid-conversation. Any failure quietly falls back to storing
      the whole answer as a single node, exactly like the fixed questions. */
   function freestyle(ans) {
-    const fallback = () => window.MAP_API.add('fun0', ans.slice(0, 40), 'idea', ['you']);
+    // Unique ids per session: a grow visit must never collide with the fun
+    // stars already saved from the first interview. Stars persist THEMSELVES
+    // the moment they land — in grow mode no later answer re-saves the map,
+    // and an async star that misses the save would vanish on reload.
+    const sid = 'fun' + (Date.now() % 1e7) + '_';
+    const fallback = () => { window.MAP_API.add(sid + 0, ans.slice(0, 40), 'idea', ['you']); saveBrain(); };
     if (!API) { fallback(); return; }
     fetch(API, {
       method: 'POST',
@@ -230,12 +237,15 @@
         .filter(x => x && x.label).slice(0, 3);
       if (!items.length) { fallback(); return; }
       const TYPES = ['business', 'project', 'idea', 'note', 'person', 'place'];
-      items.forEach((x, i) => setTimeout(() => window.MAP_API.add(
-        'fun' + i,
-        String(x.label).slice(0, 26),
-        TYPES.indexOf(x.type) >= 0 ? x.type : 'idea',
-        ['you']
-      ), 400 + i * 700));  // staggered births — the delight beat
+      items.forEach((x, i) => setTimeout(() => {
+        window.MAP_API.add(
+          sid + i,
+          String(x.label).slice(0, 26),
+          TYPES.indexOf(x.type) >= 0 ? x.type : 'idea',
+          ['you']
+        );
+        saveBrain();  // each star lands persisted, whatever happens next
+      }, 400 + i * 700));  // staggered births — the delight beat
     }).catch(fallback);
   }
 
@@ -259,7 +269,8 @@
       if (input.value.trim()) return;   // they're mid-thought — stay quiet
       if (recording) return;            // they're mid-answer — stay quiet
       nudged = step;
-      say(NUDGES[step], () => { if (voiceMode) autoListen(); });
+      const nline = (steps[step] && steps[step].nudge) || NUDGES[step];
+      say(nline, () => { if (voiceMode) autoListen(); });
     }, 12000);
   }
 
@@ -275,6 +286,24 @@
   }
 
   function finale() {
+    if (growSession) {
+      // Grow close: short, warm, done — the star birth was the show.
+      bar.style.display = 'none';
+      window.MAP_API.focus('you');
+      saveBrain();
+      say('Threaded in. Your map remembers — and so do I.', () => {
+        jstate = 'idle'; if (wake) wake.resume();
+        if (!document.getElementById('show-link')) {
+          const s = document.createElement('a');
+          s.id = 'show-link';
+          s.href = 'reactor.html?demo=1';
+          s.textContent = '◈ Back to her';
+          document.body.appendChild(s);
+        }
+        joinBox();
+      });
+      return;
+    }
     bar.style.display = 'none';
     window.MAP_API.focus('you');
     saveBrain();
@@ -307,7 +336,7 @@
     try { speechSynthesis.cancel(); } catch {}
     sayGen++; clearTimeout(sayTimer);  // and her interrupted line can't finish late
     jstate = 'thinking';
-    if (step === 0) {
+    if (step === 0 && !growSession) {  // grow answers are content, never a name
       name = text
         .replace(/^(hi|hello|hey)[,!\s]+/i, '')
         .replace(/^(you (can|may) call me|just call me|please call me|everyone calls me|they call me|people call me|i am|i'm|im|my name is|it's|its|call me|name's|the name is)\s+/i, '')
@@ -345,11 +374,34 @@
     window.MAP_API.begin();
     say('Splendid. Five questions, and I shall build your map as you answer.', nextQuestion);
   }
+  /* Grow session: ONE open question for a returning visitor, threaded into
+     their existing constellation by the live brain. The juice, 30 seconds. */
+  function growAsk() {
+    if (growSession) return;
+    growSession = true;
+    if (wake) wake.pause();
+    cta.style.display = 'none';
+    qEl.style.display = 'none';
+    bar.style.display = 'flex';
+    steps.length = 0;
+    steps.push({
+      q: "What's new in your world since we last spoke? Anything at all.",
+      nudge: 'Anything at all — a memory, a talent, the strangest thing you love.',
+      handle(ans) {
+        freestyle(ans);
+        return 'In it goes — give me one breath to thread it.';
+      },
+    });
+    step = -1;
+    nextQuestion();
+  }
+
   cta.onclick = () => {
     // Inside the tap: iOS only honors getUserMedia born of a gesture. The
     // stream acquired here is what every hands-free auto-listen reuses —
     // without this, the first listen dies silently and the interview goes deaf.
     if (canRecord) ensureEars();
+    if (growing && loadSaved() && !growSession) { growAsk(); return; }
     if (started) {  // returning visitor: CTA means "start over"
       try { localStorage.removeItem(KEY); } catch {}
       started = false;
@@ -369,6 +421,7 @@
           } catch {}
         }
         setTimeout(() => {
+          if (growing && !growSession && loadSaved()) { growAsk(); return; }
           if (!started) { begin(); return; }
           // Returning visitor: a voice summon must NEVER wipe their saved
           // Seed — that is exclusively the labeled replant button's job.
@@ -383,8 +436,14 @@
   const saved = loadSaved();
   if (saved) {
     restore(saved);
-    cta.textContent = '◈ Rebuild your map — 2 min';
-    qEl.textContent = 'Back again? Your Seed — precisely as you left it, and it remembers you.';
+    if (growing) {  // she walked them here to ADD, not to start over
+      cta.textContent = '◈ Grow your map — 30 sec';
+      cta.classList.add('urge');
+      qEl.textContent = 'One question. Watch it thread in, live.';
+    } else {
+      cta.textContent = '◈ Rebuild your map — 2 min';
+      qEl.textContent = 'Back again? Your Seed — precisely as you left it, and it remembers you.';
+    }
     qEl.style.display = 'block';
   }
   go.onclick = () => answer(input.value);
@@ -609,6 +668,9 @@
     soundOn = voice;
     voiceMode = voice;
     if (voice && wake) wake.arm();
+    // Muted arrivals start instantly (no audio to bless); voiced arrivals
+    // need the one CTA tap — a new page means a new gesture, iOS law.
+    if (growing && !voice && !growSession && loadSaved()) { growAsk(); return; }
     if (guided && !voice && !started) begin();
   });
 

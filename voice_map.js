@@ -41,7 +41,10 @@ window.VERA_VOICE = {
  "Markets, tracked while you sleep.": "voice/bootm1.mp3?v=931975f3",
  "Scores, the moment they change.": "voice/bootm2.mp3?v=949c1ab1",
  "Vitals, watched with care.": "voice/bootm3.mp3?v=2995f990",
- "Reminders, research — and a guardian’s eye on every scam.": "voice/bootm4.mp3?v=e1a34895",
+ "And with your leave — I can see your screen, and hear your world.": "voice/bootm4.mp3?v=117ef91b",
  "Are you ready to save the world?": "voice/bootdrop.mp3?v=1dc18d3f",
- "Before anything else — how are you, really?": "voice/checkin2.mp3?v=ebab657a"
+ "Before anything else — how are you, really?": "voice/checkin2.mp3?v=ebab657a",
+ "Now — your map has been waiting. Let's grow it.": "voice/growgo.mp3?v=49114097",
+ "What's new in your world since we last spoke? Anything at all.": "voice/growq.mp3?v=49717957",
+ "Threaded in. Your map remembers — and so do I.": "voice/growdone.mp3?v=a9eb362e"
 };

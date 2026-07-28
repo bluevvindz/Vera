@@ -792,74 +792,41 @@
       return;
     }
     if (window.VERA_SEED && window.VERA_ENTRY.fresh && API) {
-      // The Daily Check-In: a returning friend gets asked how they ARE.
-      // checkinPending arms only at the moment she ASKS — anything they say
-      // before that (mid-montage) is chat, never a wellbeing note.
+      // RETURNING VISITOR: straight to the juice — their map, growing. The
+      // montage plays, then she walks them to their second brain to add to
+      // it live. (Kevin, 2026-07-28: no detour questions; the value IS the
+      // map. The care layer lives in the production app, not the demo.)
       takeover();
-      // The brain must know she asked, or its reply to the answer is blind.
-      history.push({ role: 'assistant', content: 'Welcome back. Before anything else — how are you, really?' });
-      const openEars = () => {
-        if (recording) return;  // already listening — a toggle would close it
-        if (canRecord && earsServer) recToggle(true);
-        else if (captureOnce) captureOnce();
-        else input.focus();
-      };
-      const askCheckin = () => {
-        checkinPending = true;
-        checkinAskedAt = Date.now();
-      };
+      const grow = () => { location.href = 'map.html?demo=1&grow=1'; };
+      const handoff = () => speakAloud("Now — your map has been waiting. Let's grow it.", grow);
       if (voice) {
         const s = window.VERA_SEED;
         if (window.VERA_BOOT) {
           // The cold open: score up, status ticker, her voice over the top.
           // Their OWN name — the one they gave her in the interview. Only a
           // Seed with no usable name gets the plain (still epic) greeting.
-          // Pronouns and placeholders are not names — "Welcome back, You."
-          // sounds broken; those Seeds get the plain greeting instead.
           const BAD_NAME = /^(you|me|user|friend|human|sir|madam|vera|anon|anonymous|nobody)$/i;
           const known = s.name && !BAD_NAME.test(String(s.name).trim()) ? s.name : '';
           // Negotiate the mic NOW, on the dark stage: every browser prompt
-          // ("allow microphone?", the OS ask, the granted banner) lands before
-          // the show begins — never over it. The montage holds until settled,
-          // and the later openEars() finds permission already in hand.
+          // lands before the show — and the grow question on the map page
+          // then finds permission already in hand.
           const micReady = canRecord ? ensureEars() : Promise.resolve(false);
           window.VERA_BOOT.play({
             name: known,
             nodes: (s.nodes || []).length,
-            // Short greeting up front; "Are you ready to save the world?" is
-            // the montage's own drop line now — the show earns it first.
             welcome: known ? 'Welcome back, ' + known + '.' : 'Welcome back.',
             speak: speakReply,   // live synth: the one personalized line
             say: speakAloud,     // baked-first: the showcase beats, instant
             wait: micReady,
           }).then(() => {
             if (busy) { window.VERA_BOOT.stop(3); return; }  // they engaged mid-montage — follow their lead
-            if (wake) wake.arm();
-            askCheckin();
-            window.VERA_BOOT.duck();
-            const q = 'Before anything else — how are you, really?';
-            addLine('jarvis', q);  // the question must exist SOMEWHERE even if every voice fails
-            let asked = false;
-            const askDone = () => {
-              if (asked) return;
-              asked = true;
-              // Quick fade: phone speakers bleed into the mic, and their
-              // answer must reach Whisper clean, not over a music bed.
-              window.VERA_BOOT.stop(1.2);
-              openEars();
-            };
-            setTimeout(askDone, 12000);  // a hung synth must never strand the ears
-            speakReply(q, askDone);
+            handoff();  // the montage's finish already faded the score
           });
         } else {
-          if (wake) wake.arm();
-          askCheckin();
-          speakAloud('Welcome back. Before anything else — how are you, really?', openEars);
+          handoff();
         }
       } else {
-        askCheckin();
-        addLine('jarvis', 'Welcome back. Before anything else — how are you, really?');
-        input.focus();
+        setTimeout(grow, 900);
       }
       return;
     }

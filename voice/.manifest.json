@@ -41,7 +41,10 @@
  "bootm1": "931975f301f7c1d2",
  "bootm2": "949c1ab1274ecd6e",
  "bootm3": "2995f990abe4372c",
- "bootm4": "e1a34895cf1d8102",
+ "bootm4": "117ef91b1020afa6",
  "bootdrop": "1dc18d3f6094fc50",
- "checkin2": "ebab657a84412ff7"
+ "checkin2": "ebab657a84412ff7",
+ "growgo": "4911409775177a49",
+ "growq": "49717957990e2420",
+ "growdone": "a9eb362e595cd68d"
 }
