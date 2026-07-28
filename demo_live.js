@@ -25,7 +25,9 @@
   const soundBtn = document.createElement('button');
   soundBtn.id = 'sound-btn'; soundBtn.type = 'button'; soundBtn.textContent = '🔇 SOUND';
   soundBtn.title = 'Browsers require one click before a page may speak';
-  bar.append(mic, input, sendBtn, soundBtn);
+  const eye = document.createElement('button');
+  eye.id = 'eye-btn'; eye.type = 'button'; eye.textContent = '👁';
+  bar.append(mic, eye, input, sendBtn, soundBtn);
   document.body.appendChild(bar);
 
   const css = document.createElement('style');
@@ -509,6 +511,81 @@
     else if (soundOn) speakReply(d.reply, resume);  // server synth flaked — one more try
     else resume();
   }
+
+  /* ---- the glance: one frame of their world, entirely on request ----
+     Desktop: the screen (getDisplayMedia — the browser's own picker decides
+     exactly what she may see). Phone browsers ship no screen capture, so
+     there the eye is the CAMERA: point it at anything — a letter, a text on
+     another screen, the room. One frame, tracks stopped instantly, nothing
+     stored anywhere. */
+  const canScreen = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+  const canCam = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  if (!API || (!canScreen && !canCam)) eye.style.display = 'none';
+  else eye.title = canScreen
+    ? 'Show her your screen — one look, on your terms'
+    : 'Show her something — one look through your camera';
+
+  async function grabFrame() {
+    let stream;
+    try {
+      stream = canScreen
+        ? await navigator.mediaDevices.getDisplayMedia({ video: true })
+        : await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    } catch { return null; }  // they closed the picker — a choice, not an error
+    try {
+      const v = document.createElement('video');
+      v.muted = true; v.playsInline = true; v.srcObject = stream;
+      await v.play();
+      await new Promise(res => setTimeout(res, 350));  // let exposure settle
+      const scale = Math.min(1, 1280 / (v.videoWidth || 1280));
+      const c = document.createElement('canvas');
+      c.width = Math.max(2, Math.round((v.videoWidth || 1280) * scale));
+      c.height = Math.max(2, Math.round((v.videoHeight || 720) * scale));
+      c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.72).split(',')[1];
+    } catch { return null; }
+    finally { stream.getTracks().forEach(t => t.stop()); }
+  }
+
+  async function glance() {
+    if (busy || !API) return;
+    takeover();
+    if (wake) { wakeToken++; wake.pause(); }
+    const frame = await grabFrame();
+    if (!frame) { if (wake) wake.resume(); return; }
+    busy = true;
+    setMode('thinking');
+    addLine('user', canScreen ? '👁 (showed her the screen)' : '👁 (showed her the camera)');
+    let d = null;
+    try {
+      const r = await fetch(API + '/see', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ image: frame, messages: sendWindow() }),
+      });
+      d = await r.json().catch(() => null);
+    } catch { d = null; }
+    busy = false;
+    const resume = () => { setMode('idle'); if (wake) wake.resume(); };
+    if (!d || !d.reply) {
+      const line = d && d.error === 'rate_limited'
+        ? 'My eyes have had rather a full day — do show me again tomorrow.'
+        : 'I couldn’t quite make that out. Once more, if you please.';
+      addLine('jarvis', line);
+      if (soundOn) speakReply(line, resume); else resume();
+      return;
+    }
+    history.push(
+      { role: 'user', content: '(I just showed you one image of my ' + (canScreen ? 'screen' : 'surroundings') + ')' },
+      { role: 'assistant', content: d.reply },
+    );
+    setMode('speaking');
+    addLine('jarvis', d.reply);
+    if (d.audio && soundOn) playB64(d.audio, d.reply, resume);
+    else if (soundOn) speakReply(d.reply, resume);
+    else resume();
+  }
+  eye.onclick = glance;
 
   let earsServer = false;
   if (SR) mic.onclick = captureOnce;
