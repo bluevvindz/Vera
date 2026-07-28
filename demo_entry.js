@@ -87,8 +87,7 @@
     <div class="g-sub">She speaks — and she listens</div>
     <button class="g-voice" type="button">🔊 Enter with voice</button>
     <div class="g-hint">${how}<br>
-      Your browser asks for the microphone once. After the show, install her
-      for the smoothest repeat runs.</div>
+      Your browser asks for the microphone once — then the show runs itself.</div>
     <button class="g-mute" type="button">enter muted</button>
     <div class="g-cap">Public working model — capabilities deliberately limited.<br>
       The production system runs privately, with full tools and memory.</div>`;

@@ -530,6 +530,7 @@
   // if the worker has no SIGNUPS storage yet.
   function joinBox() {
     if (document.getElementById('join-box')) return;
+    try { if (localStorage.getItem('vera_joined')) return; } catch {}
     const box = document.createElement('div');
     box.id = 'join-box';
     box.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:34px;' +
@@ -561,7 +562,10 @@
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ email: v }),
         });
-        if (r.ok) settle('✦ You’re on the list.');
+        if (r.ok) {
+          try { localStorage.setItem('vera_joined', '1'); } catch {}
+          settle('✦ You’re on the list.');
+        }
         else if (r.status === 501) settle('✦ Early access opens soon.');
         else { jb.disabled = false; jb.textContent = 'RETRY'; }  // keep the form — never reload
       } catch { jb.disabled = false; jb.textContent = 'RETRY'; }
