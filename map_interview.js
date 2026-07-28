@@ -147,9 +147,9 @@
     { q: 'What project is on your mind lately?', handle(ans) {
         window.MAP_API.add('project', ans, 'project', ['you', 'work']);
         return 'On the map, linked to your work.'; } },
-    { q: 'Something you’re learning, or curious about?', handle(ans) {
-        window.MAP_API.add('idea', ans, 'idea', ['you']);
-        return 'Curiosity suits you.'; } },
+    { q: 'Now — something fun about you. A favorite memory, a hidden talent, anything.', handle(ans) {
+        freestyle(ans);  // her intelligence, visible: stars bloom as she threads it
+        return 'In it goes — give me one breath to thread it.'; } },
     { q: 'And how do you recharge?', handle(ans) {
         window.MAP_API.add('recharge', ans, 'note', ['you']);
         return 'Essential maintenance — noted.'; } },
@@ -203,6 +203,60 @@
     window.MAP_API.focus('you');
   }
 
+  /* ---- freestyle: one open answer, threaded into stars by the live brain.
+     Fire-and-forget — the interview keeps moving while she parses; the new
+     stars bloom mid-conversation. Any failure quietly falls back to storing
+     the whole answer as a single node, exactly like the fixed questions. */
+  function freestyle(ans) {
+    const fallback = () => window.MAP_API.add('fun0', ans.slice(0, 40), 'idea', ['you']);
+    if (!API) { fallback(); return; }
+    fetch(API, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'extract',
+        messages: [{ role: 'user', content: ans.slice(0, 500) }] }),
+    }).then(r => r.json()).then(d => {
+      let items = [];
+      try {  // trim any prose the model wrapped around the array
+        items = JSON.parse(String(d.reply || '').replace(/^[^\[]*/, '').replace(/[^\]]*$/, ''));
+      } catch { /* fall through */ }
+      items = (Array.isArray(items) ? items : [])
+        .filter(x => x && x.label).slice(0, 3);
+      if (!items.length) { fallback(); return; }
+      const TYPES = ['business', 'project', 'idea', 'note', 'person', 'place'];
+      items.forEach((x, i) => setTimeout(() => window.MAP_API.add(
+        'fun' + i,
+        String(x.label).slice(0, 26),
+        TYPES.indexOf(x.type) >= 0 ? x.type : 'idea',
+        ['you']
+      ), 400 + i * 700));  // staggered births — the delight beat
+    }).catch(fallback);
+  }
+
+  /* ---- hand-holds: one soft example per question if the visitor stalls.
+     Spoken once each, never repeated — hand-holding, not nagging. */
+  const NUDGES = [
+    'Just a first name will do — whatever you’d like me to call you.',
+    'Anything counts — job, study, or whatever fills your days.',
+    'Big or small — the thing you keep coming back to.',
+    'Anything at all — a memory, a talent, the strangest thing you love.',
+    'Games, walks, music, naps — whatever brings you back to life.',
+    'Truly — however today actually feels.',
+  ];
+  let nudgeTimer = null;
+  let nudged = -1;
+  function armNudge() {
+    clearTimeout(nudgeTimer);
+    if (step === nudged || step < 0 || step >= steps.length) return;
+    nudgeTimer = setTimeout(() => {
+      if (!awaiting || step === nudged) return;
+      if (input.value.trim()) return;   // they're mid-thought — stay quiet
+      if (recording) return;            // they're mid-answer — stay quiet
+      nudged = step;
+      say(NUDGES[step], () => { if (voiceMode) autoListen(); });
+    }, 12000);
+  }
+
   function nextQuestion() {
     step++;
     if (step >= steps.length) return finale();
@@ -210,7 +264,7 @@
     // her, and discarding their words reads as "she can't hear me".
     setTimeout(() => {
       awaiting = true;
-      say(steps[step].q, () => { if (voiceMode) autoListen(); });
+      say(steps[step].q, () => { if (voiceMode) autoListen(); armNudge(); });
     }, 650);
   }
 
@@ -241,6 +295,7 @@
     text = (text || '').trim();
     if (!text || !awaiting || step < 0 || step >= steps.length) return;
     awaiting = false;
+    clearTimeout(nudgeTimer);
     input.value = '';
     if (currentAudio) { try { currentAudio.pause(); } catch {} }  // they answered — she yields
     try { speechSynthesis.cancel(); } catch {}
