@@ -431,6 +431,57 @@ addEventListener('mousemove', e => {
 addEventListener('wheel', e => { zoom = Math.max(0.4, Math.min(2.6, zoom * (e.deltaY > 0 ? 0.92 : 1.08))); });
 addEventListener('dblclick', () => { autoSpin = true; });
 
+/* Touch: one finger orbits, two pinch-zoom, a still tap focuses — the phone
+   map must feel as alive as the mouse one. UI chrome stays touchable. */
+canvas.style.touchAction = 'none';
+let pinch0 = 0, zoom0 = 1;
+const uiTouch = e => e.target.closest &&
+  e.target.closest('button,input,a,.panel,#map-talk,#demo-talk,#build-cta,#join-box,#join-chip');
+addEventListener('touchstart', e => {
+  if (uiTouch(e)) return;
+  if (e.touches.length === 1) {
+    dragging = true; moved = 0;
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+  } else if (e.touches.length === 2) {
+    dragging = false;
+    pinch0 = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY);
+    zoom0 = zoom;
+  }
+}, { passive: true });
+addEventListener('touchmove', e => {
+  if (e.touches.length === 1 && dragging) {
+    const t = e.touches[0];
+    yaw += (t.clientX - lastX) * 0.005;
+    pitch = Math.max(-1.2, Math.min(1.2, pitch + (t.clientY - lastY) * 0.004));
+    moved += Math.abs(t.clientX - lastX) + Math.abs(t.clientY - lastY);
+    autoSpin = false;
+    lastX = t.clientX; lastY = t.clientY;
+  } else if (e.touches.length === 2 && pinch0) {
+    const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                         e.touches[0].clientY - e.touches[1].clientY);
+    zoom = Math.max(0.4, Math.min(2.6, zoom0 * (d / pinch0)));
+  }
+}, { passive: true });
+addEventListener('touchend', e => {
+  if (e.touches.length) { pinch0 = 0; return; }
+  const wasTap = dragging && moved < 8;
+  dragging = false; pinch0 = 0;
+  document.body.classList.remove('dragging');
+  if (wasTap && e.changedTouches && e.changedTouches[0]) {
+    const t = e.changedTouches[0];
+    let best = 26 * DPR, hit = null;
+    for (const n of nodes) {
+      if (hiddenTypes.has(n.type)) continue;
+      const p = projected.get(n.id);
+      if (!p) continue;
+      const d = Math.hypot(p.sx - t.clientX * DPR, p.sy - t.clientY * DPR);
+      if (d < best) { best = d; hit = n; }
+    }
+    setFocus(hit);
+  }
+});
+
 /* ---------------------------------------------------------- mini reactor */
 const MMODES = {
   offline:   { c: [214,  84,  98], s: 0.20 },

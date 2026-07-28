@@ -136,6 +136,12 @@
     } catch { finish(); }
   }
 
+  /* ---- phones: the map and the conversation ARE the page — the analysis
+     panels (Top Hubs, Filter) are desktop chrome and read as clutter. */
+  const declutter = document.createElement('style');
+  declutter.textContent = '@media (max-width: 640px){ #hubs, #filters { display: none; } }';
+  document.head.appendChild(declutter);
+
   /* ---- the interview ---- */
   const steps = [
     { q: 'First — what shall I call you?', handle(ans, name) {
@@ -340,6 +346,10 @@
     say('Splendid. Five questions, and I shall build your map as you answer.', nextQuestion);
   }
   cta.onclick = () => {
+    // Inside the tap: iOS only honors getUserMedia born of a gesture. The
+    // stream acquired here is what every hands-free auto-listen reuses —
+    // without this, the first listen dies silently and the interview goes deaf.
+    if (canRecord) ensureEars();
     if (started) {  // returning visitor: CTA means "start over"
       try { localStorage.removeItem(KEY); } catch {}
       started = false;
@@ -466,19 +476,25 @@
   async function listenOnce(auto) {
     if (recording) return;
     voiceMode = true;
-    if (!(await ensureEars())) return;
+    if (!(await ensureEars())) {
+      // Never die silently: the visitor must know one tap fixes hearing.
+      input.placeholder = 'Tap the mic so she can listen';
+      return;
+    }
     if (recCtx.state === 'suspended') { try { await recCtx.resume(); } catch {} }
     const node = recCtx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
     const r2 = { node, chunks, rate: recCtx.sampleRate, auto: !!auto, spoke: false, quietMs: 0,
+      settleMs: 350,  // her own voice tail is still in the room — not an answer
       timer: setTimeout(hearFinish, 14000) };
     node.onaudioprocess = e => {
       const d = e.inputBuffer.getChannelData(0);
+      const frameMs = (d.length / r2.rate) * 1000;
+      if (r2.settleMs > 0) { r2.settleMs -= frameMs; return; }  // echo settle
       chunks.push(new Float32Array(d));
       let sum = 0;
       for (let i = 0; i < d.length; i += 8) sum += d[i] * d[i];
       const rms = Math.sqrt(sum / (d.length / 8));
-      const frameMs = (d.length / r2.rate) * 1000;
       if (rms > 0.015) { r2.spoke = true; r2.quietMs = 0; }
       else r2.quietMs += frameMs;
       // A real thinking pause: three seconds, not a nervous one.

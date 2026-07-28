@@ -178,6 +178,7 @@
       },
       stop(fade) {
         if (dead) return;
+        live = false;  // level moves during the fade must not resurrect it
         const f = Math.max(0.2, fade || 2);
         master.gain.cancelScheduledValues(now());
         master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now());
@@ -299,18 +300,21 @@
       pads() { if (understudy) understudy.pads(); },  // a produced track carries its own build
       lift() { if (understudy) understudy.lift(); },
       duck() {
+        if (dead) return;
         ducked = true;
         if (understudy) return understudy.duck();
         if (!started) return;  // ducking silence would fade the track IN
         ramp(0.14, 0.45);
       },
       bed() {
+        if (dead) return;
         ducked = false;
         if (understudy) return understudy.bed();
         if (!started) return;
         ramp(0.3, 0.6, true);
       },
       swell() {
+        if (dead) return;
         ducked = false;
         if (understudy) return understudy.swell();
         if (!started) return;
@@ -432,7 +436,9 @@
         settled = true;
         finished = true;
         timers.forEach(clearTimeout);
-        if (score) score.lift();
+        // The music leaves WITH the veil: any tail under her next line reads
+        // as echo — and on phone speakers it bleeds into the microphone.
+        if (score) score.stop(quick ? 0.5 : 1.6);
         // Stage, not cockpit: the panels were a performance — they leave, and
         // the empty stage is the invitation to answer her.
         if (window.VERA_HUB) window.VERA_HUB.dissolve();

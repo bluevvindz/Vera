@@ -26,7 +26,14 @@
   soundBtn.id = 'sound-btn'; soundBtn.type = 'button'; soundBtn.textContent = '🔇 SOUND';
   soundBtn.title = 'Browsers require one click before a page may speak';
   const eye = document.createElement('button');
-  eye.id = 'eye-btn'; eye.type = 'button'; eye.textContent = '👁';
+  eye.id = 'eye-btn'; eye.type = 'button';
+  // A viewfinder, not an eyeball: HUD-native, current-color, zero creep.
+  eye.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
+    + 'stroke="currentColor" stroke-width="2" stroke-linecap="round">'
+    + '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>'
+    + '<path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>'
+    + '<circle cx="12" cy="12" r="3.2"/></svg>';
+  eye.style.display = 'flex'; eye.style.alignItems = 'center';
   bar.append(mic, eye, input, sendBtn, soundBtn);
   document.body.appendChild(bar);
 
@@ -555,7 +562,7 @@
     if (!frame) { if (wake) wake.resume(); return; }
     busy = true;
     setMode('thinking');
-    addLine('user', canScreen ? '👁 (showed her the screen)' : '👁 (showed her the camera)');
+    addLine('user', canScreen ? '◎ (showed her the screen)' : '◎ (showed her the camera)');
     let d = null;
     try {
       const r = await fetch(API + '/see', {
