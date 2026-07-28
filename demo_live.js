@@ -427,15 +427,24 @@
     if (tc) tc.remove();
     takeover();
     if (wake) { wakeToken++; wake.pause(); }
-    if (!(await ensureEars())) { if (captureOnce) captureOnce(); return; }
+    if (!(await ensureEars())) {
+      if (captureOnce) { captureOnce(); return; }
+      // No browser SR to fall back to (every iPhone): say so, never die mute.
+      input.placeholder = 'Tap the mic so she can listen';
+      if (wake) wake.resume();
+      return;
+    }
     if (recCtx.state === 'suspended') { try { await recCtx.resume(); } catch {} }  // iOS starts suspended
     const node = recCtx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
     const rec = { node, chunks, rate: recCtx.sampleRate,
       auto: !!auto, spoke: false, quietMs: 0,
+      settleMs: 350,  // her own voice tail is still in the room — not an answer
       timer: setTimeout(recordFinish, 12000) };
     node.onaudioprocess = e => {
       const d = e.inputBuffer.getChannelData(0);
+      const frameMs = (d.length / rec.rate) * 1000;
+      if (rec.settleMs > 0) { rec.settleMs -= frameMs; return; }  // echo settle
       chunks.push(new Float32Array(d));
       if (!rec.auto) return;
       // Follow-up windows self-endpoint: speech then a pause sends; pure
@@ -443,7 +452,6 @@
       let sum = 0;
       for (let i = 0; i < d.length; i += 8) sum += d[i] * d[i];
       const rms = Math.sqrt(sum / (d.length / 8));
-      const frameMs = (d.length / rec.rate) * 1000;
       if (rms > 0.015) { rec.spoke = true; rec.quietMs = 0; }
       else rec.quietMs += frameMs;
       // People think mid-sentence: give them a real 3-second breath.
