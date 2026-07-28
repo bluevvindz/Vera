@@ -16,6 +16,14 @@
   'use strict';
   const AC = window.AudioContext || window.webkitAudioContext;
 
+  // While the show runs, the page's own chrome leaves the stage — the veil
+  // already makes it unclickable, and it collides with ticker/panels on
+  // phones, tablets and narrow windows. Hidden, not moved: no layout shift.
+  const bootCss = document.createElement('style');
+  bootCss.textContent =
+    '.boot-on #demo-talk,.boot-on #nav-map,.boot-on #talk-chip{visibility:hidden !important}';
+  document.head.appendChild(bootCss);
+
   /* ---- the score ---- */
   const BPM = 124;
   const STEP = 60 / BPM / 4;             // one 16th note, in seconds
@@ -130,8 +138,10 @@
     }
 
     const now = () => ctx.currentTime;
-    return {
+    let live = false;  // level moves before start() are meaningless — and a
+    return {           // duck on a never-started score must not fade music IN
       start() {
+        live = true;
         // Linear up-ramps: an exponential fade-IN from a near-zero floor is
         // dB-linear, i.e. inaudible for most of its length. Exponential stays
         // for the fade-outs, where that same shape is what sounds natural.
@@ -149,16 +159,19 @@
         padsOn = true;
       },
       duck() {
+        if (!live) return;
         master.gain.cancelScheduledValues(now());
         master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now());
         master.gain.exponentialRampToValueAtTime(0.12, now() + 0.45);
       },
       bed() {  // showcase level: the music stays present, her voice stays clear
+        if (!live) return;
         master.gain.cancelScheduledValues(now());
         master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now());
         master.gain.linearRampToValueAtTime(0.18, now() + 0.6);
       },
       swell() {
+        if (!live) return;
         master.gain.cancelScheduledValues(now());
         master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now());
         master.gain.linearRampToValueAtTime(0.3, now() + 0.8);
@@ -281,16 +294,19 @@
       duck() {
         ducked = true;
         if (understudy) return understudy.duck();
+        if (!started) return;  // ducking silence would fade the track IN
         ramp(0.14, 0.45);
       },
       bed() {
         ducked = false;
         if (understudy) return understudy.bed();
+        if (!started) return;
         ramp(0.3, 0.6, true);
       },
       swell() {
         ducked = false;
         if (understudy) return understudy.swell();
+        if (!started) return;
         ramp(0.55, 0.8, true);
       },
       stop(fade) {
@@ -321,21 +337,32 @@
     veil.id = 'boot-veil';
     veil.style.cssText =
       'position:fixed;inset:0;z-index:8;cursor:pointer;' +
-      'background:radial-gradient(ellipse at 50% 42%,rgba(2,10,16,0.28) 0%,rgba(2,8,14,0.78) 100%);' +
+      'background:radial-gradient(ellipse at 50% 42%,rgba(2,10,16,0.06) 0%,rgba(2,8,14,0.42) 100%);' +
       'opacity:0;transition:opacity 0.45s ease;display:flex;align-items:flex-end;justify-content:center';
+    // The boot darkness is its own layer so act two can CROSSFADE it away —
+    // swapping a gradient in place is a one-frame flash-cut, not a thinning.
+    const shade = document.createElement('div');
+    shade.style.cssText =
+      'position:absolute;inset:0;pointer-events:none;z-index:0;' +
+      'background:radial-gradient(ellipse at 50% 42%,rgba(2,10,16,0.24) 0%,rgba(2,8,14,0.62) 100%);' +
+      'transition:opacity 0.9s ease';
     const col = document.createElement('div');
     col.style.cssText =
+      'position:relative;z-index:1;' +
       'margin-bottom:16vh;font-family:Rajdhani,monospace,sans-serif;font-size:14px;' +
       'letter-spacing:0.22em;color:#3fd9ff;min-width:min(560px,86vw);max-width:86vw;' +
       'text-shadow:0 0 12px rgba(63,217,255,0.45)';
-    veil.appendChild(col);
+    veil.append(shade, col);
     document.body.appendChild(veil);
+    document.body.classList.add('boot-on');  // competing chrome leaves the stage
     requestAnimationFrame(() => { veil.style.opacity = '1'; });
 
     const CUES = cues(opts);
     const TEXTS = CUES.filter(c => c.line);
     let skipped = false;
     let finished = false;  // guards late speak-callbacks: after the montage
+    let act = 'boot';      // boot -> show -> drop: level moves are act-aware
+    let welcomeDone = !(opts.speak && opts.welcome);
     const timers = [];     // hands off, its swell must never undo the duck
     const later = (fn, ms) => timers.push(setTimeout(fn, ms));
     const sayLine = opts.say || opts.speak;  // baked-first for the beats
@@ -347,16 +374,22 @@
         if (skipped) return;
         if (score) score.duck();
         opts.speak(opts.welcome, () => {
-          if (score && !skipped && !finished) score.bed();
+          welcomeDone = true;
+          // Never bed during the DROP — it would deflate the climax.
+          if (score && !skipped && !finished && act !== 'drop') score.bed();
         });
       }, 700);
     };
 
+    let pruned = 0;  // docked ticker keeps only the recent past — count what left
     function addLine(text, big) {
       const p = document.createElement('div');
       p.style.cssText = 'margin:7px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' +
         (big ? 'color:#eaf6fb;font-size:15px;text-shadow:0 0 16px rgba(63,217,255,0.8)' : '');
       col.appendChild(p);
+      if (docked) {  // short viewports: 4 lines, or the ticker meets the panels
+        while (col.childElementCount > 4) { col.firstChild.remove(); pruned++; }
+      }
       const full = '▸ ' + text;
       let i = 0;
       (function type() {
@@ -370,15 +403,18 @@
     // Act two: the veil thins so the hub builds in plain view; the ticker
     // docks small in a corner — the panels are the show now, not the text.
     const mobileLayout = matchMedia('(max-width: 900px)').matches;
+    let docked = false;
     const thinVeil = () => {
-      veil.style.background =
-        'radial-gradient(ellipse at 50% 42%,rgba(2,10,16,0.06) 0%,rgba(2,8,14,0.42) 100%)';
+      docked = true;
+      shade.style.opacity = '0';  // crossfade — the stage brightens, no pop
       veil.style.display = 'block';
       col.style.position = 'absolute';
       col.style.margin = '0';
       col.style.fontSize = '11px';
       col.style.minWidth = '0';
-      if (mobileLayout) { col.style.top = '64px'; col.style.left = '12px'; col.style.maxWidth = '92vw'; }
+      // Top corner on phones (nav chrome is hidden while boot-on, so the band
+      // is free even in landscape); bottom-left on desktop (talk bar hidden).
+      if (mobileLayout) { col.style.top = '12px'; col.style.left = '12px'; col.style.maxWidth = '92vw'; }
       else { col.style.left = '18px'; col.style.bottom = '20px'; col.style.maxWidth = '40vw'; }
     };
 
@@ -393,14 +429,21 @@
         // Stage, not cockpit: the panels were a performance — they leave, and
         // the empty stage is the invitation to answer her.
         if (window.VERA_HUB) window.VERA_HUB.dissolve();
+        document.body.classList.remove('boot-on');  // the chrome returns
         veil.style.opacity = '0';
         setTimeout(() => { veil.remove(); resolve(); }, quick ? 250 : 700);
       };
 
       const runCue = c => {
         if (skipped || settled) return;
-        if (c.phase === 'show') { thinVeil(); if (score) { score.pads(); score.bed(); } }
-        if (c.phase === 'drop' && score) { score.lift(); score.swell(); }
+        if (c.phase === 'show') {
+          act = 'show';
+          thinVeil();
+          // Stay ducked while her greeting still plays — its own completion
+          // callback performs the bed the moment she finishes.
+          if (score) { score.pads(); if (welcomeDone) score.bed(); }
+        }
+        if (c.phase === 'drop') { act = 'drop'; if (score) { score.lift(); score.swell(); } }
         if (c.act) c.act();
         if (c.line) addLine(c.line, c.big);
         if (c.say && sayLine) sayLine(c.say);
@@ -430,17 +473,27 @@
       };
       Promise.resolve(opts.wait).catch(() => {}).then(begin);
 
-      veil.addEventListener('pointerdown', () => {   // impatience is allowed
+      // Skip is a TAP, not a touch: a finger that moves is trying to look at
+      // the panels (or just resting), and must not kill the show.
+      let downAt = null;
+      veil.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+      veil.addEventListener('pointerup', e => {
+        if (skipped || settled || !downAt) return;
+        const dx = e.clientX - downAt[0], dy = e.clientY - downAt[1];
+        downAt = null;
+        if (dx * dx + dy * dy > 144) return;  // moved >12px: a swipe, not a skip
         skipped = true;
+        if (standbyEl) { standbyEl.remove(); standbyEl = null; }
         // Complete any line frozen mid-type (its next timer tick is about to
         // be cleared), THEN backfill the not-yet-started ones. Text only —
         // skipping runs no panels and speaks no beats.
         Array.prototype.forEach.call(col.children, (elDiv, i) => {
-          if (TEXTS[i]) elDiv.textContent = '▸ ' + TEXTS[i].line + (TEXTS[i].big ? '' : '  ✓');
+          const c = TEXTS[i + pruned];
+          if (c) elDiv.textContent = '▸ ' + c.line + (c.big ? '' : '  ✓');
         });
-        TEXTS.slice(col.childElementCount).forEach(c => addLine(c.line, c.big));
+        TEXTS.slice(col.childElementCount + pruned).forEach(c => addLine(c.line, c.big));
         finish(true);
-      }, { once: true });
+      });
     });
   }
 

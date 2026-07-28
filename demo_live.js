@@ -83,6 +83,7 @@
     if (f) f();
   }
   function speakAloud(text, onDone) {
+    speakSeq++;  // a baked line supersedes any in-flight synth still fetching
     // She mustn't wake herself: pause the name-listener while a line contains it.
     const risky = wake && NAME_RE.test(text);
     const myToken = risky ? ++wakeToken : 0;
@@ -145,6 +146,8 @@
   let hinted = false;
   function voiceHint() {
     // This browser can't do her voice justice for live replies — say so once.
+    // Never during the boot show: the pill would land under the ticker.
+    if (document.getElementById('boot-veil')) return;
     if (hinted) return;
     hinted = true;
     const h = document.createElement('div');
@@ -235,6 +238,9 @@
     if (tookOver) return;
     tookOver = true;
     if (window.VERA_REEL_STOP) window.VERA_REEL_STOP();
+    // The reel's hub panels (and their fetch/raf timers) die with the reel —
+    // otherwise a muted or typed engagement strands them on stage forever.
+    if (window.VERA_HUB) window.VERA_HUB.reset();
     try { speechSynthesis.cancel(); } catch {}
     stopAudio();  // silence the in-flight reel MP3, not just future steps
     if (window.VERA_TRANSCRIPT_RESET) window.VERA_TRANSCRIPT_RESET();

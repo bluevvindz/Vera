@@ -99,6 +99,8 @@
   const timers = [];
   const every = (ms, fn) => { fn(); timers.push(setInterval(fn, ms)); };
   let raf = null;
+  let gen = 0;  // bumped on reset(): in-flight fetches from a cleared stage
+                // must not log into (or repaint) the next act's panels
 
   function panel(id, glyph, title, tag) {
     const div = document.createElement('div');
@@ -137,8 +139,10 @@
     while (logBody.children.length > 6) logBody.lastChild.remove();
   }
   async function timedFetch(url, name) {
+    const g = gen;
     const t0 = performance.now();
     const r = await fetch(url);
+    if (g !== gen) throw new Error('stale');  // the stage was cleared mid-flight
     log(`GET ${name} · ${r.status} · ${Math.round(performance.now() - t0)}ms`, r.status === 200);
     if (!r.ok) throw new Error(String(r.status));
     return r.json();
@@ -199,12 +203,15 @@
       }
     };
     every(30000, async () => {
+      const g = gen;
       try {
         const data = await timedFetch(
           'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true',
           'coingecko /simple/price');
+        if (g !== gen) return;
         render(data, true);
       } catch {
+        if (g !== gen) return;
         for (const k in sim) { sim[k].usd *= 1 + (Math.random() - 0.5) * 0.004; sim[k].c += (Math.random() - 0.5) * 0.2; }
         render(sim, false);
         log('coingecko unreachable · simulating', false);
@@ -238,10 +245,12 @@
       }
     };
     every(60000, async () => {
+      const g = gen;
       try {
         const data = await timedFetch(
           'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard',
           'espn /mlb/scoreboard');
+        if (g !== gen) return;
         const games = (data.events || []).map(ev => {
           const c = (ev.competitions || [])[0] || {};
           const comps = c.competitors || [];
@@ -258,7 +267,8 @@
         });
         render(games, true);
       } catch {
-        if (Math.random() < 0.4) { const g = sim[(Math.random() * 2) | 0]; g.line = g.line.replace(/(\d+)(?=[^\d]*$)/, n => String(+n + 1)); }
+        if (g !== gen) return;
+        if (Math.random() < 0.4) { const s = sim[(Math.random() * 2) | 0]; s.line = s.line.replace(/(\d+)(?=[^\d]*$)/, n => String(+n + 1)); }
         render(sim, false);
         log('espn unreachable · simulating', false);
       }
@@ -364,6 +374,7 @@
       if (act) { act(); document.body.classList.add('hub-on'); }  // phones re-zone around the hub
     },
     reset() {
+      gen++;  // orphan any fetch still in flight
       timers.splice(0).forEach(clearInterval);
       if (raf) cancelAnimationFrame(raf);
       raf = null; logBody = null;
