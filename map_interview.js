@@ -175,6 +175,7 @@
         edges: edges.map(e => [e.a.id, e.b.id]),
         checkins: prior.concat(checkins).slice(-5),
       }));
+      checkins.length = 0;  // persisted — a later save must not re-concat them
     } catch { /* private mode etc. — gracefully tab-only */ }
   }
   function loadSaved() {
@@ -490,20 +491,23 @@
       'padding:5px 12px;cursor:pointer';
     jb.onclick = async () => {
       const v = em.value.trim();
-      if (!v) { em.focus(); return; }
-      jb.disabled = true;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) { em.focus(); return; }
+      jb.disabled = true; jb.textContent = '…';
+      const settle = msg => {  // terminal states collapse the box to a line
+        box.textContent = msg;
+        box.style.color = '#9fc3d2'; box.style.fontSize = '12px';
+        box.style.letterSpacing = '0.18em'; box.style.padding = '10px 16px';
+      };
       try {
         const r = await fetch(API + '/join', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ email: v }),
         });
-        box.textContent = r.ok ? '✦ You’re on the list.'
-          : (r.status === 501 ? '✦ Early access opens soon.' : 'Try that once more?');
-        if (!r.ok && r.status !== 501) setTimeout(() => location.reload(), 1500);
-      } catch { box.textContent = 'The wires hiccuped — try again later.'; }
-      box.style.color = '#9fc3d2'; box.style.fontSize = '12px';
-      box.style.letterSpacing = '0.18em'; box.style.padding = '10px 16px';
+        if (r.ok) settle('✦ You’re on the list.');
+        else if (r.status === 501) settle('✦ Early access opens soon.');
+        else { jb.disabled = false; jb.textContent = 'RETRY'; }  // keep the form — never reload
+      } catch { jb.disabled = false; jb.textContent = 'RETRY'; }
     };
     box.append(em, jb);
     document.body.appendChild(box);

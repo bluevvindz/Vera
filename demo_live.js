@@ -233,6 +233,13 @@
     if (c) c.replaceChildren();
     setMode('idle');
   }
+  // The API needs a user-led window: a fixed slice can land assistant-first
+  // once primer pairs and check-in lines accumulate, and then every turn 400s.
+  function sendWindow() {
+    const w = history.slice(-12);
+    while (w.length && w[0].role !== 'user') w.shift();
+    return w;
+  }
   async function send(text) {
     text = (text || '').trim();
     if (!text) return;
@@ -257,7 +264,7 @@
       const r = await fetch(API, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: history.slice(-12) }),
+        body: JSON.stringify({ messages: sendWindow() }),
       });
       const data = await r.json().catch(() => ({}));
       reply = (r.ok && data.reply) ? String(data.reply).slice(0, 600)
@@ -455,7 +462,7 @@
       const r = await fetch(API + '/voice', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ audio: b64FromBuf(wavBuf), messages: history.slice(-12) }),
+        body: JSON.stringify({ audio: b64FromBuf(wavBuf), messages: sendWindow() }),
       });
       d = await r.json().catch(() => null);
     } catch { d = null; }
@@ -550,6 +557,7 @@
   // A returning Seed-holder is KNOWN: prime her memory invisibly so the live
   // brain greets them as a person, not a stranger. Never rendered on screen.
   let checkinPending = false;
+  let checkinAskedAt = 0;
   if (window.VERA_SEED && API) {
     const s = window.VERA_SEED;
     const facts = s.nodes.filter(n => n.type !== 'router')
@@ -600,6 +608,9 @@
   function recordCheckin(text) {
     if (!checkinPending) return;
     checkinPending = false;
+    // Only a prompt answer is a check-in: minutes later it's just chat, and
+    // storing "what's the weather" as their wellbeing note poisons the Seed.
+    if (Date.now() - checkinAskedAt > 120000) return;
     try {
       const s = JSON.parse(localStorage.getItem('vera_brain_v1') || 'null');
       if (!s) return;
@@ -644,7 +655,10 @@
     if (window.VERA_SEED && window.VERA_ENTRY.fresh && API) {
       // The Daily Check-In: a returning friend gets asked how they ARE.
       checkinPending = true;
+      checkinAskedAt = Date.now();
       takeover();
+      // The brain must know she asked, or its reply to the answer is blind.
+      history.push({ role: 'assistant', content: 'Welcome back. Before anything else — how are you, really?' });
       const openEars = () => {
         if (canRecord && earsServer) recToggle(true);
         else if (captureOnce) captureOnce();

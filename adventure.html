@@ -126,12 +126,21 @@
     audioEl.playsInline = true;
     audioEl.setAttribute('playsinline', '');
   }
+  function speakable(t) {
+    t = String(t);
+    if (t.length <= 1250) return t;
+    var cut = t.slice(0, 1250);  // the /speak cap — never truncate mid-word
+    var i = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+    if (i > 400) return cut.slice(0, i + 1);
+    var sp = cut.lastIndexOf(' ');
+    return sp > 400 ? cut.slice(0, sp) : cut;
+  }
   function say(text) {
     if (!soundOn || !API || !audioEl) return;
     fetch(API + '/speak', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: String(text).slice(0, 1250) })
+      body: JSON.stringify({ text: speakable(text) })
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.audio || !soundOn) return;
       var mime = d.audio.indexOf('UklGR') === 0 ? 'audio/wav' : 'audio/mpeg';
@@ -167,7 +176,16 @@
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ messages: history.slice(-16), mode: 'dm' })
     }).then(function (r) { return r.json(); }).then(function (d) {
-      var reply = d.reply || 'The mists swallow your words — the uplink hiccuped. Try that again.';
+      if (!d || !d.reply) {
+        // Errors are table talk, not canon: never written into the story's
+        // history, and the player's line is unwound so a retry works clean.
+        add('dm', d && d.error === 'rate_limited'
+          ? 'The realm needs to rest — my public allowance is spent for now. Return later and we resume exactly here.'
+          : 'The mists swallow your words — the uplink hiccuped. Try that again.');
+        history.pop();
+        return;
+      }
+      var reply = d.reply;
       history.push({ role: 'assistant', content: reply });
       add('dm', reply);
       save();
