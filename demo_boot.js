@@ -213,6 +213,9 @@
     el.setAttribute('playsinline', '');
     el.src = url;
     el.loop = true;
+    // Bless playback inside the tap: roll silently at zero gain until start()
+    // — iOS only honors play() calls descended from a user gesture.
+    el.play().catch(() => {});
     const g = ctx.createGain();
     g.gain.value = 0;
     try {
@@ -241,6 +244,7 @@
       start() {
         started = true;
         if (understudy) return understudy.start();
+        try { el.currentTime = 0; } catch {}  // rewind the silent pre-roll
         el.play().catch(() => {});
         ramp(0.55, 1.2, true);
       },
@@ -275,9 +279,10 @@
   function play(opts) {
     opts = opts || {};
     // Born in the tap — do this FIRST (iOS blesses the whole call stack).
+    // The SHOW may wait (opts.wait: e.g. the mic-permission prompt), but the
+    // audio graph must exist right now, inside the gesture.
     const score = (trackUrl && makeFileScore(trackUrl)) || makeScore();
     current = score;
-    if (score) score.start();
 
     const veil = document.createElement('div');
     veil.id = 'boot-veil';
@@ -301,7 +306,8 @@
     const later = (fn, ms) => timers.push(setTimeout(fn, ms));
 
     // Her line rides the intro; the score breathes down while she speaks.
-    if (opts.speak && opts.welcome) {
+    const speakWelcome = () => {
+      if (!opts.speak || !opts.welcome) return;
       later(() => {
         if (skipped) return;
         if (score) score.duck();
@@ -309,7 +315,7 @@
           if (score && !skipped && !finished) score.swell();
         });
       }, 700);
-    }
+    };
 
     function addLine(text, isLast) {
       const p = document.createElement('div');
@@ -338,17 +344,37 @@
         setTimeout(() => { veil.remove(); resolve(); }, quick ? 250 : 700);
       };
 
-      LINES.forEach((text, n) => {
-        const isLast = n === LINES.length - 1;
-        later(() => {
-          addLine(text, isLast);
-          if (n === 2 && score) score.pads();       // the build begins
-          if (isLast) {
-            if (score) score.lift();                 // the drop lands with it
-            later(() => finish(false), 1700);
-          }
-        }, 550 + n * 1150);
-      });
+      // The dark stage holds until permissions settle (opts.wait) — browser
+      // mic prompts land HERE, on an empty veil, never over the show itself.
+      let began = false;
+      let standbyEl = null;
+      const standby = setTimeout(() => {
+        if (began || settled) return;
+        standbyEl = document.createElement('div');
+        standbyEl.style.cssText = 'margin:7px 0;opacity:0.55';
+        standbyEl.textContent = '▸ MIC CHANNEL — AWAITING PERMISSION';
+        col.appendChild(standbyEl);
+      }, 450);
+      const begin = () => {
+        if (began || settled) return;
+        began = true;
+        clearTimeout(standby);
+        if (standbyEl) { standbyEl.remove(); standbyEl = null; }
+        if (score) score.start();
+        speakWelcome();
+        LINES.forEach((text, n) => {
+          const isLast = n === LINES.length - 1;
+          later(() => {
+            addLine(text, isLast);
+            if (n === 2 && score) score.pads();     // the build begins
+            if (isLast) {
+              if (score) score.lift();               // the drop lands with it
+              later(() => finish(false), 1700);
+            }
+          }, 550 + n * 1150);
+        });
+      };
+      Promise.resolve(opts.wait).catch(() => {}).then(begin);
 
       veil.addEventListener('pointerdown', () => {   // impatience is allowed
         skipped = true;

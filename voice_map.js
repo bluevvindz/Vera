@@ -30,6 +30,6 @@ window.VERA_VOICE = {
  "You have rather exhausted my public allowance for the moment — do return later, or contact the management for the full experience.": "voice/ratelimit.mp3",
  "A gremlin in the wires. Do try again.": "voice/gremlin.mp3",
  "The uplink hiccuped. Once more, if you please.": "voice/uplink.mp3",
- "Welcome back. Ready to save the world?": "voice/bootwelcome.mp3",
+ "Welcome back. Are you ready to save the world?": "voice/bootwelcome.mp3",
  "Before anything else — how are you, really?": "voice/checkin2.mp3"
 };

@@ -686,13 +686,19 @@
           // Their OWN name — the one they gave her in the interview. Only a
           // Seed with no usable name gets the plain (still epic) greeting.
           const known = s.name && s.name.toLowerCase() !== 'friend' ? s.name : '';
+          // Negotiate the mic NOW, on the dark stage: every browser prompt
+          // ("allow microphone?", the OS ask, the granted banner) lands before
+          // the show begins — never over it. The montage holds until settled,
+          // and the later openEars() finds permission already in hand.
+          const micReady = canRecord ? ensureEars() : Promise.resolve(false);
           window.VERA_BOOT.play({
             name: known,
             nodes: (s.nodes || []).length,
             welcome: known
-              ? 'Welcome back, ' + known + '. Ready to save the world?'
-              : 'Welcome back. Ready to save the world?',
+              ? 'Welcome back, ' + known + '. Are you ready to save the world?'
+              : 'Welcome back. Are you ready to save the world?',
             speak: speakReply,
+            wait: micReady,
           }).then(() => {
             if (busy) { window.VERA_BOOT.stop(3); return; }  // they engaged mid-montage — follow their lead
             if (wake) wake.arm();
