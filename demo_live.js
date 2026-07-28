@@ -408,9 +408,10 @@
 
   let recStream = null, recCtx = null, recSrcNode = null;
   async function ensureEars() {
-    // Permission is a ONE-TIME toll: keep the stream and context alive for
-    // the whole visit. A fresh getUserMedia per capture makes iOS re-prompt
-    // every single time — the "permissions over and over" misery.
+    // Borrow-per-listen lifecycle: the PERMISSION persists after the first
+    // in-gesture grant, but the STREAM must not — holding it flips iOS into
+    // the phone-call session (earpiece-quiet voice, tracks killed at whim).
+    // Acquire here, release in recordFinish, re-borrow silently next time.
     if (recStream && recStream.getTracks().some(t => t.readyState === 'live')) return true;
     try { recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     catch { recStream = null; return false; }
@@ -434,7 +435,11 @@
       if (wake) wake.resume();
       return;
     }
-    if (recCtx.state === 'suspended') { try { await recCtx.resume(); } catch {} }  // iOS starts suspended
+    // iOS reports a kicked session as 'interrupted', not 'suspended' —
+    // anything short of running must resume or the mic hears nothing.
+    if (recCtx.state !== 'running') { try { await recCtx.resume(); } catch {} }
+    // A track iOS kills mid-listen must end the capture, not play dead.
+    recStream.getTracks().forEach(t => { t.onended = () => recordFinish(); });
     const node = recCtx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
     const rec = { node, chunks, rate: recCtx.sampleRate,
@@ -474,7 +479,12 @@
     clearTimeout(r.timer);
     try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
-    micIdle();  // stream and context stay warm: no re-prompt, ever
+    // RELEASE the mic between listens: a held stream flips iOS into the
+    // phone-call session (quiet earpiece voice, tracks killed at whim).
+    // Site permission persists — the next listen re-borrows silently.
+    try { if (recStream) recStream.getTracks().forEach(t => { t.onended = null; t.stop(); }); } catch {}
+    recStream = null;
+    micIdle();
     let total = 0; for (const c of r.chunks) total += c.length;
     if ((r.auto && !r.spoke) || total < r.rate * 0.4) {
       setMode('idle');

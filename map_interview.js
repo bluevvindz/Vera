@@ -431,8 +431,10 @@
   }
 
   /* ---- server ears (worker /hear): iPhones and Firefox ship no speech
-     recognition, and the interview must not depend on typing there. One
-     permission, kept warm; auto mode self-endpoints with a 3-second pause. */
+     recognition, and the interview must not depend on typing there.
+     Borrow-per-listen: permission persists after the first in-gesture grant,
+     but a HELD stream flips iOS into the phone-call session (earpiece-quiet
+     voice, tracks killed at whim) — acquire per capture, release after. */
   const canRecord = !!(API && navigator.mediaDevices && navigator.mediaDevices.getUserMedia
     && (window.AudioContext || window.webkitAudioContext));
   let recStream = null, recCtx = null, recSrcNode = null, recording = null;
@@ -481,7 +483,11 @@
       input.placeholder = 'Tap the mic so she can listen';
       return;
     }
-    if (recCtx.state === 'suspended') { try { await recCtx.resume(); } catch {} }
+    // iOS reports a kicked audio session as 'interrupted', not 'suspended' —
+    // anything short of running must be resumed or the mic hears nothing.
+    if (recCtx.state !== 'running') { try { await recCtx.resume(); } catch {} }
+    // A track iOS kills mid-listen must end the capture, not play dead.
+    recStream.getTracks().forEach(t => { t.onended = () => hearFinish(); });
     const node = recCtx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
     const r2 = { node, chunks, rate: recCtx.sampleRate, auto: !!auto, spoke: false, quietMs: 0,
@@ -513,6 +519,12 @@
     clearTimeout(r.timer);
     try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
+    // RELEASE the mic between listens. Holding it flips iOS into the
+    // phone-call audio session: her voice drops to the quiet earpiece and
+    // the held track gets killed at iOS's whim (deaf-but-LISTENING). The
+    // site permission persists, so the next listen re-borrows silently.
+    try { if (recStream) recStream.getTracks().forEach(t => { t.onended = null; t.stop(); }); } catch {}
+    recStream = null;
     micIdle();
     let total = 0; for (const c of r.chunks) total += c.length;
     if (!r.spoke || total < r.rate * 0.4) return;  // silence — wait for them
