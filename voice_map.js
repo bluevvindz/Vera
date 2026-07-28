@@ -31,6 +31,7 @@ window.VERA_VOICE = {
  "A gremlin in the wires. Do try again.": "voice/gremlin.mp3?v=90fd778d",
  "The uplink hiccuped. Once more, if you please.": "voice/uplink.mp3?v=a3412760",
  "Welcome back.": "voice/bootwelcome.mp3?v=a70734ed",
+ "Welcome. I'm Vera. Let me show you a little of what I do.": "voice/bootintro.mp3?v=b3032e8c",
  "Markets, tracked while you sleep.": "voice/bootm1.mp3?v=931975f3",
  "Scores, the moment they change.": "voice/bootm2.mp3?v=949c1ab1",
  "Vitals, watched with care.": "voice/bootm3.mp3?v=2995f990",

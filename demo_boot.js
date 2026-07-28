@@ -208,10 +208,17 @@
       if (dock && el && dock.scrollWidth > dock.clientWidth)
         dock.scrollTo({ left: Math.max(0, el.offsetLeft - 12), behavior: 'smooth' });
     };
-    return [
+    // Two scripts, one machine. FIRST CONTACT owns the honest demo flag and
+    // promises nothing personal; the returning cut flexes her memory.
+    const boot = o.fresh ? [
+      { t: 550,   line: 'PUBLIC DEMO — SANDBOXED · CAPABILITIES LIMITED' },
+      { t: 1900,  line: 'LIVE SYSTEMS — ONLINE' },
+    ] : [
       { t: 550,   line: name ? 'IDENTITY — ' + name + ' · VERIFIED' : 'IDENTITY — CONFIRMED' },
       { t: 1700,  line: 'RECONSTRUCTING BRAIN MAP — ' + (o.nodes || 0) + ' NODES ONLINE' },
       { t: 2850,  line: 'LISTENING SYSTEMS — ONLINE' },
+    ];
+    return boot.concat([
       { t: 4000,  phase: 'show', line: 'UPLINK — ATTACHED', act: hub('log') },
       { t: 5600,  line: 'MARKET FEEDS — STREAMING', act: hub('markets'),
         say: 'Markets, tracked while you sleep.' },
@@ -224,7 +231,7 @@
       { t: 24600, phase: 'drop', line: 'ALL SYSTEMS — YOURS.', big: true },
       { t: 25400, say: 'Are you ready to save the world?' },
       { t: 29800, phase: 'end' },
-    ];
+    ]);
   }
 
   /* ---- optional produced track (e.g. a Suno export) ----

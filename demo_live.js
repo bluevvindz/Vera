@@ -741,8 +741,29 @@
     if (!window.VERA_SEED && window.VERA_ENTRY.fresh) {
       takeover();  // the reel yields — introductions come first
       const go = () => { location.href = 'map.html?demo=1&go=1'; };
-      if (voice) speakAloud("First, let's get acquainted — introduce yourself, and watch me grow your second brain, live.", go);
-      else setTimeout(go, 900);
+      const tour = () => speakAloud("First, let's get acquainted — introduce yourself, and watch me grow your second brain, live.", go);
+      if (voice && window.VERA_BOOT) {
+        // FIRST CONTACT: the show plays BEFORE the interview — most visitors
+        // come exactly once, and the best 30 seconds must not wait for a
+        // second visit. The drop primes the ask: she shows, then builds YOURS.
+        // Mic permission negotiated here too, so the interview page never
+        // has to interrupt with its own prompt.
+        const micReady = canRecord ? ensureEars() : Promise.resolve(false);
+        window.VERA_BOOT.play({
+          fresh: true,
+          welcome: "Welcome. I'm Vera. Let me show you a little of what I do.",
+          speak: speakAloud,   // baked — instant, her real voice, no network
+          say: speakAloud,
+          wait: micReady,
+        }).then(() => {
+          window.VERA_BOOT.stop(1.5);  // music bows out under the handoff
+          tour();
+        });
+      } else if (voice) {
+        tour();
+      } else {
+        setTimeout(go, 900);
+      }
       return;
     }
     if (window.VERA_SEED && window.VERA_ENTRY.fresh && API) {
