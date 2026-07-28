@@ -694,10 +694,11 @@
           window.VERA_BOOT.play({
             name: known,
             nodes: (s.nodes || []).length,
-            welcome: known
-              ? 'Welcome back, ' + known + '. Are you ready to save the world?'
-              : 'Welcome back. Are you ready to save the world?',
-            speak: speakReply,
+            // Short greeting up front; "Are you ready to save the world?" is
+            // the montage's own drop line now — the show earns it first.
+            welcome: known ? 'Welcome back, ' + known + '.' : 'Welcome back.',
+            speak: speakReply,   // live synth: the one personalized line
+            say: speakAloud,     // baked-first: the showcase beats, instant
             wait: micReady,
           }).then(() => {
             if (busy) { window.VERA_BOOT.stop(3); return; }  // they engaged mid-montage — follow their lead

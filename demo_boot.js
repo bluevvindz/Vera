@@ -153,6 +153,11 @@
         master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now());
         master.gain.exponentialRampToValueAtTime(0.12, now() + 0.45);
       },
+      bed() {  // showcase level: the music stays present, her voice stays clear
+        master.gain.cancelScheduledValues(now());
+        master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now());
+        master.gain.linearRampToValueAtTime(0.18, now() + 0.6);
+      },
       swell() {
         master.gain.cancelScheduledValues(now());
         master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now());
@@ -173,16 +178,30 @@
     };
   }
 
-  /* ---- the ticker ---- */
-  function lines(o) {
+  /* ---- the show: one cue at a time, voice landing WITH its panel ----
+     Three acts: BOOT (dark veil, identity ticker), SHOW (veil thins, the hub
+     panels build one by one while she lands a beat on each), DROP (music
+     opens, the question). Every `say` string must byte-match a VOICE_LINES
+     entry in build_demo.py — the exact-string law of her baked voice. */
+  function cues(o) {
     const name = String(o.name || '').trim().toUpperCase();
+    const hub = n => () => { if (window.VERA_HUB) window.VERA_HUB.show(n); };
     return [
-      name ? 'IDENTITY — ' + name + ' · VERIFIED' : 'IDENTITY — CONFIRMED',
-      'RECONSTRUCTING BRAIN MAP — ' + (o.nodes || 0) + ' NODES ONLINE',
-      'PRIMING FORECASTS',
-      'LISTENING SYSTEMS — ONLINE',
-      'GUARDIAN WATCH — ARMED',
-      'ALL SYSTEMS — READY TO SAVE THE WORLD.',
+      { t: 550,   line: name ? 'IDENTITY — ' + name + ' · VERIFIED' : 'IDENTITY — CONFIRMED' },
+      { t: 1700,  line: 'RECONSTRUCTING BRAIN MAP — ' + (o.nodes || 0) + ' NODES ONLINE' },
+      { t: 2850,  line: 'LISTENING SYSTEMS — ONLINE' },
+      { t: 4000,  phase: 'show', line: 'UPLINK — ATTACHED', act: hub('log') },
+      { t: 5600,  line: 'MARKET FEEDS — STREAMING', act: hub('markets'),
+        say: 'Markets, tracked while you sleep.' },
+      { t: 10200, line: 'SCOREBOARD — SYNCED', act: hub('scores'),
+        say: 'Scores, the moment they change.' },
+      { t: 14800, line: 'BIOMETRICS — NOMINAL', act: hub('vitals'),
+        say: 'Vitals, watched with care.' },
+      { t: 19400, line: 'GUARDIAN WATCH — ARMED',
+        say: 'Reminders, research — and a guardian’s eye on every scam.' },
+      { t: 24600, phase: 'drop', line: 'ALL SYSTEMS — YOURS.', big: true },
+      { t: 25400, say: 'Are you ready to save the world?' },
+      { t: 29800, phase: 'end' },
     ];
   }
 
@@ -255,6 +274,11 @@
         if (understudy) return understudy.duck();
         ramp(0.14, 0.45);
       },
+      bed() {
+        ducked = false;
+        if (understudy) return understudy.bed();
+        ramp(0.3, 0.6, true);
+      },
       swell() {
         ducked = false;
         if (understudy) return understudy.swell();
@@ -299,11 +323,13 @@
     document.body.appendChild(veil);
     requestAnimationFrame(() => { veil.style.opacity = '1'; });
 
-    const LINES = lines(opts);
+    const CUES = cues(opts);
+    const TEXTS = CUES.filter(c => c.line);
     let skipped = false;
     let finished = false;  // guards late speak-callbacks: after the montage
     const timers = [];     // hands off, its swell must never undo the duck
     const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    const sayLine = opts.say || opts.speak;  // baked-first for the beats
 
     // Her line rides the intro; the score breathes down while she speaks.
     const speakWelcome = () => {
@@ -312,25 +338,40 @@
         if (skipped) return;
         if (score) score.duck();
         opts.speak(opts.welcome, () => {
-          if (score && !skipped && !finished) score.swell();
+          if (score && !skipped && !finished) score.bed();
         });
       }, 700);
     };
 
-    function addLine(text, isLast) {
+    function addLine(text, big) {
       const p = document.createElement('div');
       p.style.cssText = 'margin:7px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' +
-        (isLast ? 'color:#eaf6fb;font-size:15px;text-shadow:0 0 16px rgba(63,217,255,0.8)' : '');
+        (big ? 'color:#eaf6fb;font-size:15px;text-shadow:0 0 16px rgba(63,217,255,0.8)' : '');
       col.appendChild(p);
       const full = '▸ ' + text;
       let i = 0;
       (function type() {
-        if (skipped) { p.textContent = full + (isLast ? '' : '  ✓'); return; }
+        if (skipped) { p.textContent = full + (big ? '' : '  ✓'); return; }
         p.textContent = full.slice(0, ++i) + '█';
         if (i < full.length) timers.push(setTimeout(type, 14));
-        else p.textContent = full + (isLast ? '' : '  ✓');
+        else p.textContent = full + (big ? '' : '  ✓');
       })();
     }
+
+    // Act two: the veil thins so the hub builds in plain view; the ticker
+    // docks small in a corner — the panels are the show now, not the text.
+    const mobileLayout = matchMedia('(max-width: 900px)').matches;
+    const thinVeil = () => {
+      veil.style.background =
+        'radial-gradient(ellipse at 50% 42%,rgba(2,10,16,0.06) 0%,rgba(2,8,14,0.42) 100%)';
+      veil.style.display = 'block';
+      col.style.position = 'absolute';
+      col.style.margin = '0';
+      col.style.fontSize = '11px';
+      col.style.minWidth = '0';
+      if (mobileLayout) { col.style.top = '64px'; col.style.left = '12px'; col.style.maxWidth = '92vw'; }
+      else { col.style.left = '18px'; col.style.bottom = '20px'; col.style.maxWidth = '40vw'; }
+    };
 
     return new Promise(resolve => {
       let settled = false;
@@ -340,8 +381,21 @@
         finished = true;
         timers.forEach(clearTimeout);
         if (score) score.lift();
+        // Stage, not cockpit: the panels were a performance — they leave, and
+        // the empty stage is the invitation to answer her.
+        if (window.VERA_HUB) window.VERA_HUB.dissolve();
         veil.style.opacity = '0';
         setTimeout(() => { veil.remove(); resolve(); }, quick ? 250 : 700);
+      };
+
+      const runCue = c => {
+        if (skipped || settled) return;
+        if (c.phase === 'show') { thinVeil(); if (score) { score.pads(); score.bed(); } }
+        if (c.phase === 'drop' && score) { score.lift(); score.swell(); }
+        if (c.act) c.act();
+        if (c.line) addLine(c.line, c.big);
+        if (c.say && sayLine) sayLine(c.say);
+        if (c.phase === 'end') finish(false);
       };
 
       // The dark stage holds until permissions settle (opts.wait) — browser
@@ -360,31 +414,22 @@
         began = true;
         clearTimeout(standby);
         if (standbyEl) { standbyEl.remove(); standbyEl = null; }
+        if (window.VERA_HUB) window.VERA_HUB.reset();  // clean stage, no reel leftovers
         if (score) score.start();
         speakWelcome();
-        LINES.forEach((text, n) => {
-          const isLast = n === LINES.length - 1;
-          later(() => {
-            addLine(text, isLast);
-            if (n === 2 && score) score.pads();     // the build begins
-            if (isLast) {
-              if (score) score.lift();               // the drop lands with it
-              later(() => finish(false), 1700);
-            }
-          }, 550 + n * 1150);
-        });
+        CUES.forEach(c => later(() => runCue(c), c.t));
       };
       Promise.resolve(opts.wait).catch(() => {}).then(begin);
 
       veil.addEventListener('pointerdown', () => {   // impatience is allowed
         skipped = true;
         // Complete any line frozen mid-type (its next timer tick is about to
-        // be cleared), THEN backfill the not-yet-started ones.
+        // be cleared), THEN backfill the not-yet-started ones. Text only —
+        // skipping runs no panels and speaks no beats.
         Array.prototype.forEach.call(col.children, (elDiv, i) => {
-          elDiv.textContent = '▸ ' + LINES[i] + (i === LINES.length - 1 ? '' : '  ✓');
+          if (TEXTS[i]) elDiv.textContent = '▸ ' + TEXTS[i].line + (TEXTS[i].big ? '' : '  ✓');
         });
-        LINES.slice(col.childElementCount).forEach((t, i, arr) =>
-          addLine(t, i === arr.length - 1));
+        TEXTS.slice(col.childElementCount).forEach(c => addLine(c.line, c.big));
         finish(true);
       }, { once: true });
     });
