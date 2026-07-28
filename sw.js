@@ -6,21 +6,28 @@
    Voice entries migrate across versions; filenames are content-stable
    (the build re-voices a line whenever its text changes).
    Cross-origin (brain worker, data feeds) is never intercepted or cached. */
-const VERSION = 'vera-20260728055421';
+const VERSION = 'vera-20260728062259';
 const SHELL = VERSION + '-shell';
 const VOICE = VERSION + '-voice';
-const SHELL_ASSETS = ['/', '/index.html', '/reactor.html', '/map.html',
-  '/demo_pwa.js', '/demo_config.js', '/voice_map.js', '/demo_wake.js',
-  '/demo_entry.js', '/demo_panels.js', '/demo_boot.js', '/demo_live.js', '/map_interview.js',
-  '/brain_data.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
+/* Scope-relative, never root-absolute: on a subpath deploy (a GitHub Pages
+   project site at user.github.io/repo/) root paths resolve to the ORIGIN
+   root, 404 silently, and install "succeeds" with an empty cache. Every
+   asset resolves against registration scope so any mount path works. */
+const SHELL_ASSETS = ['./', './index.html', './reactor.html', './map.html',
+  './demo_pwa.js', './demo_config.js', './voice_map.js', './demo_wake.js',
+  './demo_entry.js', './demo_panels.js', './demo_boot.js', './demo_live.js', './map_interview.js',
+  './brain_data.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+const inScope = u => new URL(u, self.registration.scope).href;
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(SHELL);
-    await Promise.all(SHELL_ASSETS.map(u =>
-      fetch(u, { cache: 'no-cache' })
-        .then(r => r.status === 200 ? c.put(u, r) : undefined)
-        .catch(() => {})));
+    await Promise.all(SHELL_ASSETS.map(u => {
+      const abs = inScope(u);
+      return fetch(abs, { cache: 'no-cache' })
+        .then(r => r.status === 200 ? c.put(abs, r) : undefined)
+        .catch(() => {});
+    }));
     await self.skipWaiting();
   })());
 });
@@ -85,8 +92,12 @@ self.addEventListener('fetch', e => {
     } catch {
       let hit = await c.match(e.request, { ignoreSearch: e.request.mode === 'navigate' });
       if (!hit && e.request.mode === 'navigate') {
-        if (url.pathname === '/') hit = await c.match('/index.html', { ignoreSearch: true });
-        else if (url.pathname === '/index.html') hit = await c.match('/', { ignoreSearch: true });
+        // The scope root and its index are one page — derived, never '/' literals.
+        const root = inScope('./'), index = inScope('./index.html');
+        if (url.href.split('?')[0] === root)
+          hit = await c.match(index, { ignoreSearch: true });
+        else if (url.href.split('?')[0] === index)
+          hit = await c.match(root, { ignoreSearch: true });
       }
       return hit || Response.error();
     }
