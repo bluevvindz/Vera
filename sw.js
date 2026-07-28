@@ -6,12 +6,12 @@
    Voice entries migrate across versions; filenames are content-stable
    (the build re-voices a line whenever its text changes).
    Cross-origin (brain worker, data feeds) is never intercepted or cached. */
-const VERSION = 'vera-20260727044920';
+const VERSION = 'vera-20260728035623';
 const SHELL = VERSION + '-shell';
 const VOICE = VERSION + '-voice';
 const SHELL_ASSETS = ['/', '/index.html', '/reactor.html', '/map.html',
   '/demo_pwa.js', '/demo_config.js', '/voice_map.js', '/demo_wake.js',
-  '/demo_entry.js', '/demo_panels.js', '/demo_live.js', '/map_interview.js',
+  '/demo_entry.js', '/demo_panels.js', '/demo_boot.js', '/demo_live.js', '/map_interview.js',
   '/brain_data.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', e => {

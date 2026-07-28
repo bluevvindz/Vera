@@ -75,6 +75,8 @@
   function stopAudio() {
     // Preempting a line must still run its completion (wake.resume, onDone…) —
     // a paused <audio> fires neither ended nor error, so flush it by hand.
+    // Browser-TTS lines cancel too: one voice at a time, no overlaps.
+    try { speechSynthesis.cancel(); } catch {}
     const a = currentAudio, f = currentFinish;
     currentAudio = null; currentFinish = null;
     if (a) { a.onended = a.onerror = null; try { a.pause(); } catch {} }
@@ -184,7 +186,10 @@
       el.play().catch(finish);
     } catch { finish(); }
   }
+  let speakSeq = 0;  // supersede token: a newer line silences a stale in-flight one
   async function speakReply(text, onDone) {
+    const my = ++speakSeq;
+    const stale = () => my !== speakSeq;
     if (API) {
       for (let attempt = 0; attempt < 2; attempt++) {  // synth cold-starts flake once
         try {
@@ -192,13 +197,18 @@
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ text }),
+            // A stalled response must fall through to the fallbacks, not hang.
+            signal: AbortSignal.timeout ? AbortSignal.timeout(9000) : undefined,
           });
           const d = await r.json();
+          if (stale()) { if (onDone) onDone(); return; }  // superseded mid-flight
           if (r.ok && d.audio) { playB64(d.audio, text, onDone); return; }
         } catch { /* retry, then fall through */ }
+        if (stale()) { if (onDone) onDone(); return; }
         await new Promise(res => setTimeout(res, 350));
       }
     }
+    if (stale()) { if (onDone) onDone(); return; }
     speakAloud(text, onDone);
   }
 
@@ -654,20 +664,61 @@
     }
     if (window.VERA_SEED && window.VERA_ENTRY.fresh && API) {
       // The Daily Check-In: a returning friend gets asked how they ARE.
-      checkinPending = true;
-      checkinAskedAt = Date.now();
+      // checkinPending arms only at the moment she ASKS — anything they say
+      // before that (mid-montage) is chat, never a wellbeing note.
       takeover();
       // The brain must know she asked, or its reply to the answer is blind.
       history.push({ role: 'assistant', content: 'Welcome back. Before anything else — how are you, really?' });
       const openEars = () => {
+        if (recording) return;  // already listening — a toggle would close it
         if (canRecord && earsServer) recToggle(true);
         else if (captureOnce) captureOnce();
         else input.focus();
       };
+      const askCheckin = () => {
+        checkinPending = true;
+        checkinAskedAt = Date.now();
+      };
       if (voice) {
-        if (wake) wake.arm();
-        speakAloud('Welcome back. Before anything else — how are you, really?', openEars);
+        const s = window.VERA_SEED;
+        if (window.VERA_BOOT) {
+          // The cold open: score up, status ticker, her voice over the top.
+          // Their OWN name — the one they gave her in the interview. Only a
+          // Seed with no usable name gets the plain (still epic) greeting.
+          const known = s.name && s.name.toLowerCase() !== 'friend' ? s.name : '';
+          window.VERA_BOOT.play({
+            name: known,
+            nodes: (s.nodes || []).length,
+            welcome: known
+              ? 'Welcome back, ' + known + '. Ready to save the world?'
+              : 'Welcome back. Ready to save the world?',
+            speak: speakReply,
+          }).then(() => {
+            if (busy) { window.VERA_BOOT.stop(3); return; }  // they engaged mid-montage — follow their lead
+            if (wake) wake.arm();
+            askCheckin();
+            window.VERA_BOOT.duck();
+            const q = 'Before anything else — how are you, really?';
+            addLine('jarvis', q);  // the question must exist SOMEWHERE even if every voice fails
+            let asked = false;
+            const askDone = () => {
+              if (asked) return;
+              asked = true;
+              // Quick fade: phone speakers bleed into the mic, and their
+              // answer must reach Whisper clean, not over a music bed.
+              window.VERA_BOOT.stop(1.2);
+              openEars();
+            };
+            setTimeout(askDone, 12000);  // a hung synth must never strand the ears
+            speakReply(q, askDone);
+          });
+        } else {
+          if (wake) wake.arm();
+          askCheckin();
+          speakAloud('Welcome back. Before anything else — how are you, really?', openEars);
+        }
       } else {
+        askCheckin();
         addLine('jarvis', 'Welcome back. Before anything else — how are you, really?');
         input.focus();
       }
