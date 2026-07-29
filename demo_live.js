@@ -550,10 +550,10 @@
     ? 'Show her your screen — one look, on your terms'
     : 'Show her something — one look through your camera';
 
-  async function grabFrame() {
+  async function grabFrame(kind) {
     let stream;
     try {
-      stream = canScreen
+      stream = kind === 'screen'
         ? await navigator.mediaDevices.getDisplayMedia({ video: true })
         : await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     } catch { return null; }  // they closed the picker — a choice, not an error
@@ -572,15 +572,15 @@
     finally { stream.getTracks().forEach(t => t.stop()); }
   }
 
-  async function glance() {
+  async function glance(kind) {
     if (busy || !API) return;
     takeover();
     if (wake) { wakeToken++; wake.pause(); }
-    const frame = await grabFrame();
+    const frame = await grabFrame(kind);
     if (!frame) { if (wake) wake.resume(); return; }
     busy = true;
     setMode('thinking');
-    addLine('user', canScreen ? '◎ (showed her the screen)' : '◎ (showed her the camera)');
+    addLine('user', kind === 'screen' ? '◎ (showed her the screen)' : '◎ (showed her the camera)');
     let d = null;
     try {
       const r = await fetch(API + '/see', {
@@ -601,7 +601,7 @@
       return;
     }
     history.push(
-      { role: 'user', content: '(I just showed you one image of my ' + (canScreen ? 'screen' : 'surroundings') + ')' },
+      { role: 'user', content: '(I just showed you one image of my ' + (kind === 'screen' ? 'screen' : 'surroundings') + ')' },
       { role: 'assistant', content: d.reply },
     );
     setMode('speaking');
@@ -610,7 +610,34 @@
     else if (soundOn) speakReply(d.reply, resume);
     else resume();
   }
-  eye.onclick = glance;
+  // Desktops have BOTH sights: a tiny two-button ask beats guessing. Phones
+  // ship no screen capture, so the eye goes straight to the camera there.
+  function pickSight() {
+    if (document.getElementById('sight-pick')) return;
+    const p = document.createElement('div');
+    p.id = 'sight-pick';
+    p.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:150px;' +
+      'z-index:7;display:flex;gap:8px;background:rgba(8,22,34,0.95);' +
+      'border:1px solid rgba(63,217,255,0.4);border-radius:6px;padding:8px;' +
+      'font-family:Rajdhani,sans-serif';
+    const mk = (label, kind) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = label;
+      b.style.cssText = 'background:none;border:1px solid rgba(63,217,255,0.45);' +
+        'border-radius:4px;color:#3fd9ff;font-family:inherit;font-size:11px;' +
+        'letter-spacing:0.2em;padding:6px 14px;cursor:pointer';
+      b.onclick = () => { p.remove(); glance(kind); };
+      return b;
+    };
+    p.append(mk('SCREEN', 'screen'), mk('CAMERA', 'camera'));
+    document.body.appendChild(p);
+    setTimeout(() => { if (p.isConnected) p.remove(); }, 8000);
+  }
+  eye.onclick = () => {
+    if (busy || !API) return;
+    if (canScreen && canCam) pickSight();
+    else glance(canScreen ? 'screen' : 'camera');
+  };
 
   let earsServer = false;
   if (SR) mic.onclick = captureOnce;
