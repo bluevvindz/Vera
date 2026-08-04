@@ -397,10 +397,10 @@
   }
 
   cta.onclick = () => {
-    // Inside the tap: iOS only honors getUserMedia born of a gesture. The
-    // stream acquired here is what every hands-free auto-listen reuses —
-    // without this, the first listen dies silently and the interview goes deaf.
-    if (canRecord) ensureEars();
+    // Permission-warm only: getUserMedia inside the tap earns the site its
+    // mic permission (which persists), then everything is released at once —
+    // holding a stream while she talks flips iOS into the phone-call session.
+    if (canRecord) ensureEars().then(ok => { if (ok) releaseEars(); });
     if (growing && loadSaved() && !growSession) { growAsk(); return; }
     if (started) {  // returning visitor: CTA means "start over"
       try { localStorage.removeItem(KEY); } catch {}
@@ -497,12 +497,22 @@
   const canRecord = !!(API && navigator.mediaDevices && navigator.mediaDevices.getUserMedia
     && (window.AudioContext || window.webkitAudioContext));
   let recStream = null, recCtx = null, recSrcNode = null, recording = null;
+  function releaseEars() {
+    try { if (recStream) recStream.getTracks().forEach(t => { t.onended = null; t.stop(); }); } catch {}
+    recStream = null;
+    try { if (recCtx) recCtx.close(); } catch {}
+    recCtx = null; recSrcNode = null;
+  }
   async function ensureEars() {
-    if (recStream && recStream.getTracks().some(t => t.readyState === 'live')) return true;
+    // Borrow-per-listen for the WHOLE session — a context kept across
+    // listens wakes up suspended once iOS tears the audio session down,
+    // and LISTENING shows while nothing is heard. Fresh context each
+    // listen, created BEFORE the await so a tap's gesture blesses it.
+    releaseEars();
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    recCtx = new Ctx();
     try { recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     catch { recStream = null; return false; }
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!recCtx) recCtx = new Ctx();
     recSrcNode = recCtx.createMediaStreamSource(recStream);
     return true;
   }
@@ -550,9 +560,14 @@
     const node = recCtx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
     const r2 = { node, chunks, rate: recCtx.sampleRate, auto: !!auto, spoke: false, quietMs: 0,
+      frames: 0,
       settleMs: 350,  // her own voice tail is still in the room — not an answer
-      timer: setTimeout(hearFinish, 14000) };
+      timer: setTimeout(hearFinish, 14000),
+      // Dead-pipe watchdog: a capture that never produces a frame ends
+      // fast and says so, instead of impersonating a quiet room.
+      pulse: setTimeout(() => { if (recording === r2 && !r2.frames) hearFinish(); }, 1500) };
     node.onaudioprocess = e => {
+      r2.frames++;
       const d = e.inputBuffer.getChannelData(0);
       const frameMs = (d.length / r2.rate) * 1000;
       if (r2.settleMs > 0) { r2.settleMs -= frameMs; return; }  // echo settle
@@ -575,16 +590,19 @@
     if (!recording) return;
     const r = recording;
     recording = null;
-    clearTimeout(r.timer);
+    clearTimeout(r.timer); clearTimeout(r.pulse);
     try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
-    // RELEASE the mic between listens. Holding it flips iOS into the
-    // phone-call audio session: her voice drops to the quiet earpiece and
-    // the held track gets killed at iOS's whim (deaf-but-LISTENING). The
-    // site permission persists, so the next listen re-borrows silently.
-    try { if (recStream) recStream.getTracks().forEach(t => { t.onended = null; t.stop(); }); } catch {}
-    recStream = null;
+    // RELEASE the whole session between listens. A held stream flips iOS
+    // into the phone-call session; a kept context wakes up dead (see
+    // ensureEars). Site permission persists — the next listen re-borrows.
+    releaseEars();
     micIdle();
+    if (!r.frames) {
+      // Not one frame arrived — dead pipe, not a quiet visitor. Say so.
+      input.placeholder = 'Her ears cut out \u2014 tap the mic and she\u2019ll listen again';
+      return;
+    }
     let total = 0; for (const c of r.chunks) total += c.length;
     if (!r.spoke || total < r.rate * 0.4) return;  // silence — wait for them
     input.placeholder = 'On the wires…';

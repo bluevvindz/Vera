@@ -230,7 +230,7 @@
       { t: 19400, line: 'SIGHT & HEARING — ON REQUEST',
         say: 'And with your leave — I can see your screen, and hear your world.' },
       { t: 24600, phase: 'drop', line: 'ALL SYSTEMS — YOURS.', big: true },
-      { t: 25400, say: 'Are you ready to save the world?' },
+      { t: 25400, say: 'Let’s get started.' },
       { t: 29800, phase: 'end' },
     ]);
   }

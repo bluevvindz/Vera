@@ -407,16 +407,25 @@
   }
 
   let recStream = null, recCtx = null, recSrcNode = null;
+  function releaseEars() {
+    try { if (recStream) recStream.getTracks().forEach(t => { t.onended = null; t.stop(); }); } catch {}
+    recStream = null;
+    try { if (recCtx) recCtx.close(); } catch {}
+    recCtx = null; recSrcNode = null;
+  }
   async function ensureEars() {
-    // Borrow-per-listen lifecycle: the PERMISSION persists after the first
-    // in-gesture grant, but the STREAM must not — holding it flips iOS into
-    // the phone-call session (earpiece-quiet voice, tracks killed at whim).
-    // Acquire here, release in recordFinish, re-borrow silently next time.
-    if (recStream && recStream.getTracks().some(t => t.readyState === 'live')) return true;
+    // Borrow-per-listen — the WHOLE audio session, not just the stream. The
+    // PERMISSION persists after the first in-gesture grant, but iOS tears
+    // its audio session down whenever the borrowed stream is released,
+    // leaving a kept AudioContext suspended beyond resume()'s reach outside
+    // a tap: LISTENING shows while the processor never fires, forever. So
+    // each listen gets a context born fresh — created BEFORE the await,
+    // inside the tap when there is one, which is when iOS lets it run.
+    releaseEars();
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    recCtx = new Ctx();
     try { recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     catch { recStream = null; return false; }
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!recCtx) recCtx = new Ctx();
     recSrcNode = recCtx.createMediaStreamSource(recStream);
     return true;
   }
@@ -443,10 +452,15 @@
     const node = recCtx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
     const rec = { node, chunks, rate: recCtx.sampleRate,
-      auto: !!auto, spoke: false, quietMs: 0,
+      auto: !!auto, spoke: false, quietMs: 0, frames: 0,
       settleMs: 350,  // her own voice tail is still in the room — not an answer
-      timer: setTimeout(recordFinish, 12000) };
+      timer: setTimeout(recordFinish, 12000),
+      // Dead-pipe watchdog: if no frame arrives at all, end the capture
+      // fast and say so — a dead processor must never impersonate a quiet
+      // room for twelve silent seconds.
+      pulse: setTimeout(() => { if (recording === rec && !rec.frames) recordFinish(); }, 1500) };
     node.onaudioprocess = e => {
+      rec.frames++;
       const d = e.inputBuffer.getChannelData(0);
       const frameMs = (d.length / rec.rate) * 1000;
       if (rec.settleMs > 0) { rec.settleMs -= frameMs; return; }  // echo settle
@@ -476,15 +490,21 @@
     if (!recording) return;
     const r = recording;
     recording = null;
-    clearTimeout(r.timer);
+    clearTimeout(r.timer); clearTimeout(r.pulse);
     try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
-    // RELEASE the mic between listens: a held stream flips iOS into the
-    // phone-call session (quiet earpiece voice, tracks killed at whim).
-    // Site permission persists — the next listen re-borrows silently.
-    try { if (recStream) recStream.getTracks().forEach(t => { t.onended = null; t.stop(); }); } catch {}
-    recStream = null;
+    // RELEASE the whole session between listens: a held stream flips iOS
+    // into the phone-call session, and a kept context wakes up dead (see
+    // ensureEars). Site permission persists — the next listen re-borrows.
+    releaseEars();
     micIdle();
+    if (!r.frames) {
+      // Not one frame arrived — the pipe was dead, not the room quiet.
+      addLine('jarvis', 'My ears cut out for a moment \u2014 tap the mic and I\u2019ll listen again.');
+      setMode('idle');
+      if (wake) wake.resume();
+      return;
+    }
     let total = 0; for (const c of r.chunks) total += c.length;
     if ((r.auto && !r.spoke) || total < r.rate * 0.4) {
       setMode('idle');
