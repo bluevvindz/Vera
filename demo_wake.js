@@ -43,6 +43,7 @@
       let pendingText = '';
       let pendingTimer = null;
       let fired = false;
+      let duckPaused = false;  // set ONLY when the duck-guard itself pauses a live ear
 
       function fire(transcript) {
         // One breath: "Vera, what's the weather" → onWake("what's the weather").
@@ -103,6 +104,7 @@
         try { rec.start(); } catch { rec = null; }
       }
       function stop() {
+        duckPaused = false;  // any deliberate pause/stop revokes the duck-guard's claim
         paused = true;
         fired = true;  // disarm the in-flight breath — no late fire from timers or flushed results
         if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
@@ -126,23 +128,49 @@
       // Android ducks media system-wide while recognition runs — so the
       // wake ear yields whenever her voice is on the speakers, and takes
       // the ear back a beat after she finishes. iPhones (no SR) unaffected.
+      // OWNERSHIP RULE: the guard resumes ONLY a listener it ducked itself.
+      // Interview / chat-capture / entry pauses clear duckPaused (stop()
+      // does that) and must NEVER be resumed from here.
+      const duck = () => {
+        // Live ear right now, or a pause the guard already owns (a pre-play
+        // duck() followed by the 'play' event must not drop its own claim).
+        const wasLive = (enabled && !paused) || duckPaused;
+        stop();               // clears duckPaused
+        duckPaused = wasLive; // reclaim only when the guard ducked a live ear
+        if (wasLive) {
+          // No chip flicker — but the ear IS off while she speaks, so the
+          // chip must say so instead of advertising a deaf hotword. The
+          // guard's back()/resume path restores the armed text.
+          chip.style.display = '';
+          chip.textContent = '◈ Speaking — one moment';
+          chip.classList.remove('armed');
+        }
+      };
       const attachDuckGuard = () => {
         const el = window.VERA_AUDIO_EL;
         if (!el || el._wakeDuckGuard) return;
         el._wakeDuckGuard = true;
-        el.addEventListener('play', () => { stop(); });
+        el.addEventListener('play', duck);
         const back = () => setTimeout(() => {
-          if (enabled && !paused) return;
+          if (!duckPaused) return;              // not our pause — interview/chat owns it
+          // Still playing — its own 'ended' re-calls us. (el.error escapes
+          // this gate: a mid-play media error stops sound with paused still
+          // false, and no further event would ever come.)
+          if (!el.paused && !el.ended && !el.error) return;
+          duckPaused = false;
           if (enabled) ctl.resume();
         }, 300);
         el.addEventListener('ended', back);
         el.addEventListener('pause', back);
+        el.addEventListener('error', back);  // a media error fires neither 'ended' nor 'pause'
       };
-      setInterval(attachDuckGuard, 1500);
       const ctl = {
         pause: stop,
         arm,  // entry gate arms listening without a chip click
+        duck,                          // pre-play hook: duck BEFORE play() — zero ducked words
+        duckAttach: attachDuckGuard,   // pages call this the moment VERA_AUDIO_EL is born
         resume() {
+          duckPaused = false;  // an explicit resume supersedes any pending duck-return
           paused = false;
           if (!enabled) return;
           chip.style.display = '';  // wake hid it — always-on means it comes back
@@ -151,6 +179,8 @@
           listen();
         },
       };
+      attachDuckGuard();                   // attach NOW if the element already exists
+      setInterval(attachDuckGuard, 1500);  // safety net for late/foreign creations
       return ctl;
     },
   };

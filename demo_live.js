@@ -63,10 +63,9 @@
 
   /* ---- browser voice out (free) ---- */
   let soundOn = false;
-  let voices = [];
-  const loadVoices = () => { voices = speechSynthesis.getVoices(); };
-  loadVoices();
-  if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
+  // Kick the async voice-list load early; browserSpeak hooks onvoiceschanged
+  // itself whenever the list hasn't landed yet.
+  try { speechSynthesis.getVoices(); } catch {}
   let currentAudio = null;
   let currentFinish = null;  // pending completion of the playing MP3
   let wakeToken = 0;         // invalidates stale wake-resume timers
@@ -78,6 +77,7 @@
       el.playsInline = true;
       el.setAttribute('playsinline', '');
       window.VERA_AUDIO_EL = el;
+      if (wake && wake.duckAttach) wake.duckAttach();  // guard on from the first play
     }
     return window.VERA_AUDIO_EL;
   }
@@ -98,13 +98,23 @@
     const myToken = risky ? ++wakeToken : 0;
     if (risky) wake.pause();
     let done = false;
+    let watchdog = 0;
+    let orphanDuck = false;  // play() died with no media events — the duck-guard's back() will never run
     const finish = () => {
       if (done) return;
       done = true;
+      clearTimeout(watchdog);
       if (currentFinish === finish) { currentAudio = null; currentFinish = null; }
+      // A duck this call issued must not outlive it: with no 'ended'/'pause'
+      // coming, hand the ear back — unless a capture owns the pause now.
+      if (orphanDuck && !risky && wake && !earOpen && !recording) wake.resume();
       if (risky) setTimeout(() => { if (myToken === wakeToken) wake.resume(); }, 250);
       if (onDone) onDone();
     };
+    // Watchdog: audio/speech can be blocked silently, and Chromium's synth
+    // stalls without onend on long lines — always advance, or `busy` wedges
+    // forever. finish is idempotent, so a late real onend is harmless.
+    watchdog = setTimeout(finish, Math.max(4000, text.length * 80));
     // Pre-baked neural MP3 for scripted lines — her real voice.
     const src = (window.VERA_VOICE || {})[text];
     if (src) {
@@ -115,9 +125,10 @@
         el.src = src;
         currentAudio = el;
         currentFinish = finish;
-        el.play().catch(() => browserSpeak(text, finish));
+        if (wake && wake.duck) wake.duck();  // pre-play duck: not one word plays quiet
+        el.play().catch(() => { orphanDuck = true; browserSpeak(text, finish); });
         return;
-      } catch { /* fall through */ }
+      } catch { orphanDuck = true; /* fall through */ }
     }
     browserSpeak(text, finish);
   }
@@ -179,13 +190,21 @@
     const myToken = risky ? ++wakeToken : 0;
     if (risky) wake.pause();
     let done = false;
+    let watchdog = 0;
+    let orphanDuck = false;  // play() died with no media events — the duck-guard's back() will never run
     const finish = () => {
       if (done) return;
       done = true;
+      clearTimeout(watchdog);
       if (currentFinish === finish) { currentAudio = null; currentFinish = null; }
+      // A duck this call issued must not outlive it: with no 'ended'/'pause'
+      // coming, hand the ear back — unless a capture owns the pause now.
+      if (orphanDuck && !risky && wake && !earOpen && !recording) wake.resume();
       if (risky) setTimeout(() => { if (myToken === wakeToken) wake.resume(); }, 250);
       if (onDone) onDone();
     };
+    // Watchdog mirrors speakAloud's: a stalled element must never wedge `busy`.
+    watchdog = setTimeout(finish, Math.max(4000, text.length * 80));
     try {
       stopAudio();
       // The worker's engines return WAV (RIFF → 'UklGR') or MP3 — sniff it.
@@ -195,8 +214,9 @@
       el.src = 'data:' + mime + ';base64,' + b64audio;
       currentAudio = el;
       currentFinish = finish;
-      el.play().catch(finish);
-    } catch { finish(); }
+      if (wake && wake.duck) wake.duck();  // pre-play duck: not one word plays quiet
+      el.play().catch(() => { orphanDuck = true; finish(); });
+    } catch { orphanDuck = true; finish(); }
   }
   let speakSeq = 0;  // supersede token: a newer line silences a stale in-flight one
   async function speakReply(text, onDone) {
@@ -268,10 +288,14 @@
   async function send(text) {
     text = (text || '').trim();
     if (!text) return;
+    // One rule: sending by ANY modality retires every open ear first — a
+    // capture left live would hear her reply and mail it back as "their"
+    // next words.
+    if (abortCapture) abortCapture();
+    recordDiscard();
     if (busy) { pendingSend = text; return; }  // queued, not swallowed
     takeover();
     primeWeather();
-    recordCheckin(text);
     input.value = '';
     addLine('user', text);
     if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }  // sending IS the gesture
@@ -315,9 +339,9 @@
   // the follow-up without demanding her name again. Silence ends the exchange
   // and hands control back to the wake word.
   function followUp() {
-    if (!API || busy || recording) return;
+    if (!API || busy || recording || earOpen) return;  // never double-open over a live ear
     if (canRecord && earsServer) recToggle(true);
-    else if (captureOnce) captureOnce();
+    else if (captureOnce) captureOnce(true);
   }
 
   /* ---- voice in ---- */
@@ -327,32 +351,76 @@
     mic.classList.remove('rec'); mic.textContent = '🎙'; input.placeholder = idleHint;
   };
   let captureOnce = null;
+  let abortCapture = null;
+  let earOpen = false;  // ANY live ear — SR capture or recorder — one shared claim, nothing double-opens
   if (SR) {
     let rec = null;
     let cancelled = false;
-    captureOnce = () => {
+    abortCapture = () => {  // the send landed another way — this ear retires silently
+      if (!rec) return;
+      cancelled = true;
+      try { rec.abort(); } catch { try { rec.stop(); } catch {} }
+    };
+    captureOnce = (auto) => {
       if (rec) {  // second tap = cancel, and their typed draft survives
         cancelled = true;
         try { rec.abort(); } catch { try { rec.stop(); } catch {} }
         return;
       }
+      earOpen = true;  // claim BEFORE the flush below — its onDone chain calls followUp
+      stopAudio();     // barge-in: a mic tap mid-line means "let me speak" — she yields
       takeover();
       if (wake) { wakeToken++; wake.pause(); }  // one recognizer at a time; kill stale resumes
       cancelled = false;
       const draft = input.value;
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.continuous = true;  // Chrome must not hang up on a thinking human
       mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
       input.value = '';
-      input.placeholder = 'Listening — speak now…';
+      input.placeholder = 'Take your time — I’m listening…';
       setMode('listening'); targetLevel = 0.5;
+      // Same endpointing as the interview: WE decide when they're done, not
+      // Chrome. Base pause 5s, pause-and-resumers 6.5s, trailing connectives
+      // buy extra time. Up-front thinking silence: a deliberate tap earns a
+      // generous 75s, but an AUTO follow-up window bows out at ~11s — a
+      // silent visitor must not face a pulsing mic (wake word suspended)
+      // for over a minute after she finishes a reply.
+      let base = '';
+      let lastHeardAt = Date.now();
+      let sawPauseResume = false;
+      const t0 = Date.now();
+      const CONT = /\b(and|or|but|so|because|like|um|uh|then|also|plus|maybe|well)[\s.]*$/i;
+      let endTimer = null;
+      const armEnd = () => {
+        clearTimeout(endTimer);
+        endTimer = setTimeout(() => {
+          const said = input.value.trim();
+          const idle = Date.now() - lastHeardAt;
+          let cap = sawPauseResume ? 6500 : 5000;
+          if (CONT.test(said)) cap += 2500;
+          if (!said && Date.now() - t0 < (auto ? 11000 : 75000)) { armEnd(); return; }
+          if (said && idle < cap) { armEnd(); return; }
+          try { rec._finish = true; rec.stop(); } catch {}
+        }, 1200);
+      };
       rec.onresult = e => {
+        const gap = Date.now() - lastHeardAt;
+        if (input.value.trim() && gap > 2000) sawPauseResume = true;
+        lastHeardAt = Date.now();
         let heard = '';
         for (let i = 0; i < e.results.length; i++) heard += e.results[i][0].transcript;
-        input.value = heard.trim();  // their words, appearing as they speak
+        input.value = (base + ' ' + heard).trim();  // their words, appearing as they speak
       };
       rec.onend = () => {
+        // Chrome gave up; if THEY haven't, quietly pick the ear back up.
+        if (!cancelled && rec && !rec._finish && Date.now() - t0 < 90000) {
+          base = input.value.trim();
+          try { rec.start(); return; } catch {}
+        }
+        clearTimeout(endTimer);
         micIdle(); rec = null;
+        earOpen = false;
         const said = input.value.trim();
         if (cancelled || !said) {
           input.value = draft;
@@ -364,8 +432,16 @@
         }
         if (wake) wake.resume();
       };
-      rec.onerror = () => { micIdle(); };  // onend always follows and settles state
-      rec.start();
+      rec.onerror = () => {};  // onend always follows and settles state
+      try { rec.start(); } catch {
+        // A recognizer that can't even start must not hold the ear claim.
+        micIdle(); rec = null; earOpen = false;
+        input.value = draft;
+        if (!busy) setMode('idle');
+        if (wake) wake.resume();
+        return;
+      }
+      armEnd();
     };
   }
 
@@ -433,12 +509,21 @@
   async function recToggle(auto) {
     if (busy) return;
     if (recording) { recordFinish(); return; }
+    if (earOpen) {
+      // A live SR capture holds the ear (wake summon or ensureEars fallback
+      // after the /health mic swap): the tap must still mean CANCEL — route
+      // it to the capture's own cancel path, draft and wake restored as ever.
+      if (abortCapture) abortCapture();
+      return;
+    }
+    earOpen = true;
     const tc = document.getElementById('talk-chip');
     if (tc) tc.remove();
     takeover();
     if (wake) { wakeToken++; wake.pause(); }
     if (!(await ensureEars())) {
-      if (captureOnce) { captureOnce(); return; }
+      earOpen = false;
+      if (captureOnce) { captureOnce(auto); return; }
       // No browser SR to fall back to (every iPhone): say so, never die mute.
       input.placeholder = 'Tap the mic so she can listen';
       if (wake) wake.resume();
@@ -453,11 +538,15 @@
     const chunks = [];
     const rec = { node, chunks, rate: recCtx.sampleRate,
       auto: !!auto, spoke: false, quietMs: 0, frames: 0,
+      draft: input.value,  // typed half-answers survive a silent/dead capture
       settleMs: 350,  // her own voice tail is still in the room — not an answer
-      timer: setTimeout(recordFinish, 12000),
+      // Safety net ONLY — endpointing belongs to the RMS pause caps below
+      // (auto) or the finish tap (manual). A wall clock must never cut a
+      // visitor off mid-thought; the interview recorder proved 95s is fine.
+      timer: setTimeout(recordFinish, 95000),
       // Dead-pipe watchdog: if no frame arrives at all, end the capture
       // fast and say so — a dead processor must never impersonate a quiet
-      // room for twelve silent seconds.
+      // room for ninety-five silent seconds.
       pulse: setTimeout(() => { if (recording === rec && !rec.frames) recordFinish(); }, 1500) };
     node.onaudioprocess = e => {
       rec.frames++;
@@ -471,11 +560,15 @@
       let sum = 0;
       for (let i = 0; i < d.length; i += 8) sum += d[i] * d[i];
       const rms = Math.sqrt(sum / (d.length / 8));
+      // ONE endpointing personality across all four ears: base 5000 matches
+      // the SR path and the interview recorder — anything stricter cuts fast
+      // starters off at their FIRST real mid-thought pause. Pause-and-
+      // resumers get 6500. (Resume detection reads quietMs BEFORE speech
+      // zeroes it — the other order can never fire.)
+      if (rec.quietMs > 2000 && rms > 0.015) rec.pauser = true;
       if (rms > 0.015) { rec.spoke = true; rec.quietMs = 0; }
       else rec.quietMs += frameMs;
-      // People think mid-sentence: give them a real 3-second breath.
-      if (rec.quietMs > 2000 && rms > 0.015) rec.pauser = true;
-      const pcap = rec.pauser ? 5200 : 3200;
+      const pcap = rec.pauser ? 6500 : 5000;
       if ((rec.spoke && rec.quietMs > pcap) || (!rec.spoke && rec.quietMs > 12000)) recordFinish();
     };
     recSrcNode.connect(node); node.connect(recCtx.destination);
@@ -492,6 +585,7 @@
     if (!recording) return;
     const r = recording;
     recording = null;
+    earOpen = false;
     clearTimeout(r.timer); clearTimeout(r.pulse);
     try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
@@ -501,6 +595,7 @@
     releaseEars();
     micIdle();
     if (!r.frames) {
+      input.value = r.draft;  // their typed draft survives a dead pipe
       // Not one frame arrived — the pipe was dead, not the room quiet.
       addLine('jarvis', 'My ears cut out for a moment \u2014 tap the mic and I\u2019ll listen again.');
       setMode('idle');
@@ -509,12 +604,29 @@
     }
     let total = 0; for (const c of r.chunks) total += c.length;
     if ((r.auto && !r.spoke) || total < r.rate * 0.4) {
+      input.value = r.draft;  // their typed draft survives a silent bow-out
       setMode('idle');
       if (wake) wake.resume();  // silence: the exchange is over, her name resumes duty
       return;
     }
     lastInputVoice = true;
     sendVoice(wavFrom(r.chunks, r.rate));
+  }
+
+  function recordDiscard() {
+    // The send landed another way mid-capture: release the ear, clear the
+    // timers, drop the chunks — post nothing. Her reply must never come back
+    // as "their" words.
+    if (!recording) return;
+    const r = recording;
+    recording = null;
+    earOpen = false;
+    clearTimeout(r.timer); clearTimeout(r.pulse);
+    try { recSrcNode.disconnect(r.node); } catch {}
+    try { r.node.disconnect(); } catch {}
+    releaseEars();
+    micIdle();
+    if (wake) wake.resume();  // the reply about to play will duck it as usual
   }
 
   async function sendVoice(wavBuf) {
@@ -550,7 +662,7 @@
       const line = 'The uplink hiccuped. Once more, if you please.';
       addLine('jarvis', line); speakAloud(line, resume); return;
     }
-    if (d.heard) { recordCheckin(d.heard); addLine('user', d.heard); history.push({ role: 'user', content: d.heard }); }
+    if (d.heard) { addLine('user', d.heard); history.push({ role: 'user', content: d.heard }); }
     history.push({ role: 'assistant', content: d.reply });
     setMode('speaking');
     addLine('jarvis', d.reply);
@@ -662,7 +774,7 @@
   };
 
   let earsServer = false;
-  if (SR) mic.onclick = captureOnce;
+  if (SR) mic.onclick = () => captureOnce();  // the click Event must not read as `auto`
   else if (canRecord) { earsServer = true; mic.onclick = () => recToggle(false); }
   else mic.style.display = 'none';
   if (canRecord) (async () => {
@@ -693,8 +805,12 @@
         const then = () => {
           if (acked) return;
           acked = true;
-          if (captureOnce) captureOnce();
-          else if (canRecord) recToggle();
+          // onWake only exists where SR does (demo_wake bails without it),
+          // and SR existing means captureOnce exists — no other branch.
+          // Hands-free window: a bare summon may be a false trigger (TV, an
+          // overheard name) — bow out on the ~11s auto clock, never 75
+          // pulsing seconds with the hotword suspended.
+          if (captureOnce) captureOnce(true);
         };
         if (a) {
           try {
@@ -723,8 +839,6 @@
 
   // A returning Seed-holder is KNOWN: prime her memory invisibly so the live
   // brain greets them as a person, not a stranger. Never rendered on screen.
-  let checkinPending = false;
-  let checkinAskedAt = 0;
   if (window.VERA_SEED && API) {
     const s = window.VERA_SEED;
     const facts = s.nodes.filter(n => n.type !== 'router')
@@ -772,22 +886,6 @@
       { role: 'assistant', content: 'Noted.' },
     );
   }
-  function recordCheckin(text) {
-    if (!checkinPending) return;
-    checkinPending = false;
-    // Only a prompt answer is a check-in: minutes later it's just chat, and
-    // storing "what's the weather" as their wellbeing note poisons the Seed.
-    if (Date.now() - checkinAskedAt > 120000) return;
-    try {
-      const s = JSON.parse(localStorage.getItem('vera_brain_v1') || 'null');
-      if (!s) return;
-      (s.checkins = s.checkins || []).push({ at: Date.now(), note: String(text).slice(0, 140) });
-      s.checkins = s.checkins.slice(-5);
-      s.v = 1;
-      localStorage.setItem('vera_brain_v1', JSON.stringify(s));
-    } catch { /* device-local best effort */ }
-  }
-
   // Devices without browser speech recognition (every iPhone browser,
   // Firefox) have NO wake word — say so plainly, or visitors talk into the
   // void saying "Hey Vera" to a page that cannot hear names.
@@ -821,8 +919,15 @@
         // come exactly once, and the best 30 seconds must not wait for a
         // second visit. The drop primes the ask: she shows, then builds YOURS.
         // Mic permission negotiated here too, so the interview page never
-        // has to interrupt with its own prompt.
-        const micReady = canRecord ? ensureEars() : Promise.resolve(false);
+        // has to interrupt with its own prompt. PRIVATE warm, released the
+        // moment it's granted: a HELD stream flips iOS into the phone-call
+        // session and the whole show would play earpiece-quiet. Permission
+        // persists after the grant — that's all the map page needs.
+        const micReady = canRecord
+          ? navigator.mediaDevices.getUserMedia({ audio: true })
+              .then(s => { s.getTracks().forEach(t => t.stop()); return true; })
+              .catch(() => false)
+          : Promise.resolve(false);
         window.VERA_BOOT.play({
           fresh: true,
           welcome: "Welcome. I'm Vera. Let me show you a little of what I do.",
@@ -858,8 +963,14 @@
           const known = s.name && !BAD_NAME.test(String(s.name).trim()) ? s.name : '';
           // Negotiate the mic NOW, on the dark stage: every browser prompt
           // lands before the show — and the grow question on the map page
-          // then finds permission already in hand.
-          const micReady = canRecord ? ensureEars() : Promise.resolve(false);
+          // then finds permission already in hand. PRIVATE warm, released
+          // at once: a HELD stream would play the montage (and any mid-
+          // montage engagement) earpiece-quiet on iPhone.
+          const micReady = canRecord
+            ? navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(s => { s.getTracks().forEach(t => t.stop()); return true; })
+                .catch(() => false)
+            : Promise.resolve(false);
           window.VERA_BOOT.play({
             name: known,
             nodes: (s.nodes || []).length,

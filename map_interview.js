@@ -60,10 +60,9 @@
   document.body.append(cta, qEl, bar);
 
   /* ---- voice ---- */
-  let voices = [];
-  const loadVoices = () => { voices = speechSynthesis.getVoices(); };
-  loadVoices();
-  if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
+  // Kick the async voice-list load early; speakBrowser hooks onvoiceschanged
+  // itself whenever the list hasn't landed yet.
+  try { speechSynthesis.getVoices(); } catch {}
   let currentAudio = null;
   let soundOn = true;   // 'enter muted' at the gate is honored here too
   let voiceMode = false;  // set once they enter with voice or touch the mic
@@ -99,6 +98,7 @@
           window.VERA_AUDIO_EL = new Audio();
           window.VERA_AUDIO_EL.playsInline = true;
           window.VERA_AUDIO_EL.setAttribute('playsinline', '');
+          if (wake && wake.duckAttach) wake.duckAttach();  // guard on from the first play
         }
         const el = window.VERA_AUDIO_EL;
         el.onended = el.onerror = finish;
@@ -137,6 +137,16 @@
       speechSynthesis.speak(u);
     } catch { finish(); }
   }
+  function bargeIn() {
+    // An answer — or a deliberate mic engagement — mid-line means "let me
+    // speak": she yields the floor, and her interrupted line can't finish
+    // late (sayGen) or fire a stale watchdog (sayTimer). Without this, an
+    // eager tap opens an ear UNDER her live MP3: iPhone records her own
+    // question through the speaker; Android ducks her mid-word.
+    if (currentAudio) { try { currentAudio.pause(); } catch {} }
+    try { speechSynthesis.cancel(); } catch {}
+    sayGen++; clearTimeout(sayTimer);
+  }
 
   /* ---- phones: the map and the conversation ARE the page — the analysis
      panels (Top Hubs, Filter) are desktop chrome and read as clutter. */
@@ -169,6 +179,8 @@
   let step = -1;
   let name = 'friend';
   let awaiting = false;  // only accept answers once the current question is fully asked
+  let micBusy = false;   // ANY live ear — SR or recorder — nudges/autolisten must never talk over or cancel it
+  let ansGen = 0;        // answer generation: a stale /hear continuation must never land as an answer
 
   /* ---- persistence: their map, their device, nothing anywhere else ---- */
   const KEY = 'vera_brain_v1';
@@ -266,9 +278,8 @@
     if (step === nudged || step < 0 || step >= steps.length) return;
     nudgeTimer = setTimeout(() => {
       if (!awaiting || step === nudged) return;
-      if (recording || (typeof rec !== 'undefined' && rec)) { armNudge(); return; }
+      if (micBusy || recording) { armNudge(); return; }  // a live ear — never talk over it
       if (input.value.trim()) return;   // they're mid-thought — stay quiet
-      if (recording) return;            // they're mid-answer — stay quiet
       nudged = step;
       const nline = (steps[step] && steps[step].nudge) || NUDGES[step];
       say(nline, () => { if (voiceMode) autoListen(); });
@@ -332,10 +343,15 @@
     if (!text || !awaiting || step < 0 || step >= steps.length) return;
     awaiting = false;
     clearTimeout(nudgeTimer);
+    // One rule: an answer by ANY modality retires every open ear first — a
+    // stale capture left running would hear her ack (ducked on Android, a
+    // held-stream session on iPhone) and record it as the NEXT answer.
+    if (abortSR) abortSR();
+    hearDiscard();
+    ansGen++;         // an in-flight /hear round trip is retired too — its transcript must not land
+    micBusy = false;  // …and the hold it kept on the ear claim goes with it
     input.value = '';
-    if (currentAudio) { try { currentAudio.pause(); } catch {} }  // they answered — she yields
-    try { speechSynthesis.cancel(); } catch {}
-    sayGen++; clearTimeout(sayTimer);  // and her interrupted line can't finish late
+    bargeIn();  // they answered — she yields
     jstate = 'thinking';
     if (step === 0 && !growSession) {  // grow answers are content, never a name
       name = text
@@ -363,10 +379,12 @@
         el.playsInline = true;
         el.setAttribute('playsinline', '');
         el.volume = 0;
+        el.muted = true;  // iOS ignores element.volume — muted it honors
         el.src = 'voice/wake.mp3';
-        el.play().then(() => { el.pause(); el.volume = 1; el.currentTime = 0; })
-          .catch(() => { el.volume = 1; });
+        el.play().then(() => { el.pause(); el.muted = false; el.volume = 1; el.currentTime = 0; })
+          .catch(() => { el.muted = false; el.volume = 1; });
         window.VERA_AUDIO_EL = el;
+        if (wake && wake.duckAttach) wake.duckAttach();  // guard on from the first play
       }
     } catch {}
     if (wake) wake.pause();
@@ -398,10 +416,15 @@
   }
 
   cta.onclick = () => {
-    // Permission-warm only: getUserMedia inside the tap earns the site its
-    // mic permission (which persists), then everything is released at once —
-    // holding a stream while she talks flips iOS into the phone-call session.
-    if (canRecord) ensureEars().then(ok => { if (ok) releaseEars(); });
+    // Permission-warm only: a PRIVATE getUserMedia inside the tap earns the
+    // site its mic permission (which persists), then stops its own tracks —
+    // holding a stream while she talks flips iOS into the phone-call session,
+    // and it must NEVER share recStream/recCtx with a real listen: a slow
+    // grant would let the warm's continuation clobber question 1's borrow
+    // and strand micBusy forever.
+    if (canRecord) navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(s => { try { s.getTracks().forEach(t => t.stop()); } catch {} })
+      .catch(() => {});
     if (growing && loadSaved() && !growSession) { growAsk(); return; }
     if (started) {  // returning visitor: CTA means "start over"
       try { localStorage.removeItem(KEY); } catch {}
@@ -457,17 +480,26 @@
     mic.classList.remove('rec'); mic.textContent = '🎙'; input.placeholder = idleHint;
   };
   let startSR = null;
+  let abortSR = null;
   if (SR) {
     let rec = null;
     let cancelled = false;
-    startSR = () => {
+    abortSR = () => {  // the answer landed another way — this ear retires silently
+      if (!rec) return;
+      cancelled = true;
+      try { rec.abort(); } catch { try { rec.stop(); } catch {} }
+    };
+    startSR = (manual) => {
       if (rec) {  // second tap = cancel; their typed draft survives
         cancelled = true;
         try { rec.abort(); } catch { try { rec.stop(); } catch {} }
         return;
       }
+      if (manual) bargeIn();  // a mic tap mid-line means "let me speak" — she yields
+      jstate = 'listening';   // the reactor shows the ear, not her interrupted line
       voiceMode = true;
       cancelled = false;
+      micBusy = true;
       const draft = input.value;
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
@@ -476,7 +508,8 @@
       input.value = '';
       input.placeholder = 'Take your time — I\u2019m listening\u2026';
       // Two-scenario endpointing: WE decide when they're done, not Chrome.
-      // Base pause 4s; anyone who pauses and resumes is a thinker (6.5s);
+      // Base pause 5s — generous enough that the FIRST thinking pause
+      // survives too, not just the second; pause-and-resumers get 6.5s;
       // trailing connectives ('and', 'because', 'um'...) buy extra time.
       // Up-front thinking silence: a generous 75s before giving up.
       let base = '';
@@ -490,7 +523,7 @@
         endTimer = setTimeout(() => {
           const said = input.value.trim();
           const idle = Date.now() - lastHeardAt;
-          let cap = sawPauseResume ? 6500 : 4000;
+          let cap = sawPauseResume ? 6500 : 5000;
           if (CONT.test(said)) cap += 2500;
           if (!said && Date.now() - t0 < 75000) { armEnd(); return; }
           if (said && idle < cap) { armEnd(); return; }
@@ -513,12 +546,37 @@
         }
         clearTimeout(endTimer);
         micIdle(); rec = null;
+        micBusy = false;
         const said = input.value.trim();
-        if (cancelled || !said) { input.value = draft; return; }
+        if (cancelled || !said) {
+          jstate = 'idle';  // no answer landed — never leave the reactor stuck on 'speaking'
+          input.value = draft;
+          // Either way the hand-back-to-manual is FINAL for this question:
+          // kill the pending nudge, or within 12s she'd contradict herself
+          // and reopen the very ear the user just closed. Mic-off means
+          // mic-off — they re-engage by tap or typing.
+          if (cancelled) {
+            clearTimeout(nudgeTimer); nudged = step;
+          } else if (awaiting) {
+            // 75 quiet seconds must not end in a silent dead mic — leave a
+            // soft door open. (A deliberate cancel tap stays silent.)
+            clearTimeout(nudgeTimer); nudged = step;
+            say('No hurry at all — tap the mic when you’re ready, or simply type.');
+          }
+          return;
+        }
         answer(said);
       };
       rec.onerror = () => {};  // onend follows and settles state
-      rec.start();
+      try { rec.start(); } catch {
+        // A recognizer that can't even start must not strand micBusy with a
+        // pulsing mic and no endTimer — that kills autoListen and loops the
+        // nudge forever. Restore everything and hand back to the buttons.
+        micIdle(); rec = null; micBusy = false;
+        jstate = 'idle';  // the ear never opened — don't leave 'listening' pulsing
+        input.value = draft;
+        return;
+      }
       armEnd();
     };
   }
@@ -531,7 +589,9 @@
   const canRecord = !!(API && navigator.mediaDevices && navigator.mediaDevices.getUserMedia
     && (window.AudioContext || window.webkitAudioContext));
   let recStream = null, recCtx = null, recSrcNode = null, recording = null;
+  let earsGen = 0;  // generation token: a stale borrow must never clobber a newer one
   function releaseEars() {
+    earsGen++;  // any borrow still awaiting its grant is now stale — it stands down
     try { if (recStream) recStream.getTracks().forEach(t => { t.onended = null; t.stop(); }); } catch {}
     recStream = null;
     try { if (recCtx) recCtx.close(); } catch {}
@@ -543,10 +603,21 @@
     // and LISTENING shows while nothing is heard. Fresh context each
     // listen, created BEFORE the await so a tap's gesture blesses it.
     releaseEars();
+    const gen = ++earsGen;
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    recCtx = new Ctx();
-    try { recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch { recStream = null; return false; }
+    const ctx = new Ctx();
+    recCtx = ctx;
+    let stream = null;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {}
+    if (gen !== earsGen) {
+      // Superseded (or released) while the grant was pending — stand down
+      // without touching the newer borrow's stream or context.
+      try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
+      try { ctx.close(); } catch {}
+      return false;
+    }
+    if (!stream) { recStream = null; return false; }
+    recStream = stream;
     recSrcNode = recCtx.createMediaStreamSource(recStream);
     return true;
   }
@@ -580,8 +651,14 @@
   }
   async function listenOnce(auto) {
     if (recording) return;
+    if (!auto) { bargeIn(); jstate = 'listening'; }  // a mic tap mid-line means "let me speak" — she yields; the reactor shows the ear
+    micBusy = true;  // covers the getUserMedia await too — no nudge over a borrowing ear
     voiceMode = true;
-    if (!(await ensureEars())) {
+    let ok = false;
+    try { ok = await ensureEars(); } catch { ok = false; }  // a rejection must never strand micBusy
+    if (!ok) {
+      micBusy = false;
+      jstate = 'idle';  // the ear never opened — don't leave 'listening' pulsing
       // Never die silently: the visitor must know one tap fixes hearing.
       input.placeholder = 'Tap the mic so she can listen';
       return;
@@ -593,8 +670,9 @@
     recStream.getTracks().forEach(t => { t.onended = () => hearFinish(); });
     const node = recCtx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
-    const r2 = { node, chunks, rate: recCtx.sampleRate, auto: !!auto, spoke: false, quietMs: 0,
+    const r2 = { node, chunks, rate: recCtx.sampleRate, spoke: false, quietMs: 0,
       frames: 0,
+      draft: input.value,  // typed half-answers survive a silent/dead capture
       settleMs: 350,  // her own voice tail is still in the room — not an answer
       timer: setTimeout(hearFinish, 95000),
       // Dead-pipe watchdog: a capture that never produces a frame ends
@@ -609,16 +687,20 @@
       let sum = 0;
       for (let i = 0; i < d.length; i += 8) sum += d[i] * d[i];
       const rms = Math.sqrt(sum / (d.length / 8));
-      if (rms > 0.015) { r2.spoke = true; r2.quietMs = 0; }
-      else r2.quietMs += frameMs;
       // A real thinking pause: three seconds, not a nervous one.
       // Two scenarios, one rule: a pause is only 'done' when it outlasts
       // this speaker's own habits. Anyone who pauses >2s and RESUMES is a
       // thinker — their tolerance rises for the rest of the answer. And an
       // interview question deserves a real thinking silence up front (75s),
-      // not a shot clock.
-      if (r2.quietMs > 2000 && rms > 0.015) r2.pauser = true;
-      const pauseCap = r2.pauser ? 6000 : 3500;
+      // not a shot clock. (Resume detection reads quietMs BEFORE speech
+      // zeroes it — the other order can never fire.)
+      if (r2.spoke && r2.quietMs > 2000 && rms > 0.015) r2.pauser = true;
+      if (rms > 0.015) { r2.spoke = true; r2.quietMs = 0; }
+      else r2.quietMs += frameMs;
+      // Base 5000 matches the SR path — RMS silence counts from true acoustic
+      // quiet, so anything stricter cuts fast starters off at their FIRST
+      // real mid-thought pause on the one platform with no other voice path.
+      const pauseCap = r2.pauser ? 6500 : 5000;
       if ((r2.spoke && r2.quietMs > pauseCap) || (!r2.spoke && r2.quietMs > 75000)) hearFinish();
     };
     recSrcNode.connect(node); node.connect(recCtx.destination);
@@ -639,14 +721,24 @@
     // ensureEars). Site permission persists — the next listen re-borrows.
     releaseEars();
     micIdle();
+    // micBusy HOLDS through the /hear round-trip: the answer is still in
+    // flight, and a nudge or autoListen during it would reopen an ear that
+    // records her own ack as the next answer.
     if (!r.frames) {
+      micBusy = false;
+      input.value = r.draft;
       // Not one frame arrived — dead pipe, not a quiet visitor. Say so.
       input.placeholder = 'Her ears cut out \u2014 tap the mic and she\u2019ll listen again';
       return;
     }
     let total = 0; for (const c of r.chunks) total += c.length;
-    if (!r.spoke || total < r.rate * 0.4) return;  // silence — wait for them
+    if (!r.spoke || total < r.rate * 0.4) {  // silence — wait for them; their typed draft survives
+      micBusy = false;
+      input.value = r.draft;
+      return;
+    }
     input.placeholder = 'On the wires…';
+    const gen = ansGen;  // if an answer lands another way mid-flight, this transcript is stale
     try {
       const resp = await fetch(API + '/hear', {
         method: 'POST',
@@ -654,21 +746,52 @@
         body: JSON.stringify({ audio: b64FromBuf(wavFrom(r.chunks, r.rate)) }),
       });
       const d = await resp.json().catch(() => null);
+      if (gen !== ansGen) return;  // superseded — a newer answer owns micBusy/input now; drop this transcript
       input.placeholder = idleHint;
+      micBusy = false;
       if (d && d.heard) { input.value = d.heard; answer(d.heard); return; }
+      // Nothing heard: say so in her register, and their typed half-answer
+      // from before the mic tap survives — draft-survival is the house rule.
+      input.value = r.draft;
       input.placeholder = 'Didn’t catch that — tap the mic, or type';
-    } catch { input.placeholder = idleHint; }
+      say('I didn’t catch that — do try again, a touch closer to the microphone.',
+        () => { if (voiceMode) autoListen(); });  // the spoken 'try again' must reopen the ear itself
+    } catch {
+      if (gen !== ansGen) return;  // superseded mid-flight — stand down silently
+      // The uplink failed AFTER they spoke a full answer — silence here
+      // reads as being ignored. Acknowledge the loss; the draft survives.
+      micBusy = false;
+      input.value = r.draft;
+      input.placeholder = 'The uplink hiccuped — tap the mic, or type';
+      say('The uplink hiccuped. Once more, if you please.',
+        () => { if (voiceMode) autoListen(); });  // keep the hands-free chain alive after a failure
+    }
+  }
+  function hearDiscard() {
+    // The visitor answered another way mid-capture: release the ear, clear
+    // the timers, drop the chunks — post nothing. Her reply must never come
+    // back as "their" words.
+    if (!recording) return;
+    const r = recording;
+    recording = null;
+    micBusy = false;
+    clearTimeout(r.timer); clearTimeout(r.pulse);
+    try { recSrcNode.disconnect(r.node); } catch {}
+    try { r.node.disconnect(); } catch {}
+    releaseEars();
+    micIdle();
   }
 
   // Hands-free chain: once they've used voice, each question reopens the mic
   // by itself — no button between answers.
   function autoListen() {
     if (!voiceMode) return;
+    if (micBusy || recording) return;  // an ear is already open — starting again would CANCEL it
     if (startSR) startSR();
     else if (canRecord) listenOnce(true);
   }
 
-  if (startSR) mic.onclick = startSR;
+  if (startSR) mic.onclick = () => startSR(true);  // a tap is manual — never pass the Event
   else if (canRecord) mic.onclick = () => (recording ? hearFinish() : listenOnce(false));
   else mic.style.display = 'none';
 
