@@ -123,7 +123,23 @@
         arm();
       };
 
-      return {
+      // Android ducks media system-wide while recognition runs — so the
+      // wake ear yields whenever her voice is on the speakers, and takes
+      // the ear back a beat after she finishes. iPhones (no SR) unaffected.
+      const attachDuckGuard = () => {
+        const el = window.VERA_AUDIO_EL;
+        if (!el || el._wakeDuckGuard) return;
+        el._wakeDuckGuard = true;
+        el.addEventListener('play', () => { stop(); });
+        const back = () => setTimeout(() => {
+          if (enabled && !paused) return;
+          if (enabled) ctl.resume();
+        }, 300);
+        el.addEventListener('ended', back);
+        el.addEventListener('pause', back);
+      };
+      setInterval(attachDuckGuard, 1500);
+      const ctl = {
         pause: stop,
         arm,  // entry gate arms listening without a chip click
         resume() {
@@ -135,6 +151,7 @@
           listen();
         },
       };
+      return ctl;
     },
   };
 })();

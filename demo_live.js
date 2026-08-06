@@ -474,7 +474,9 @@
       if (rms > 0.015) { rec.spoke = true; rec.quietMs = 0; }
       else rec.quietMs += frameMs;
       // People think mid-sentence: give them a real 3-second breath.
-      if ((rec.spoke && rec.quietMs > 3200) || (!rec.spoke && rec.quietMs > 7000)) recordFinish();
+      if (rec.quietMs > 2000 && rms > 0.015) rec.pauser = true;
+      const pcap = rec.pauser ? 5200 : 3200;
+      if ((rec.spoke && rec.quietMs > pcap) || (!rec.spoke && rec.quietMs > 12000)) recordFinish();
     };
     recSrcNode.connect(node); node.connect(recCtx.destination);
     recording = rec;

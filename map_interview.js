@@ -266,6 +266,7 @@
     if (step === nudged || step < 0 || step >= steps.length) return;
     nudgeTimer = setTimeout(() => {
       if (!awaiting || step === nudged) return;
+      if (recording || (typeof rec !== 'undefined' && rec)) { armNudge(); return; }
       if (input.value.trim()) return;   // they're mid-thought — stay quiet
       if (recording) return;            // they're mid-answer — stay quiet
       nudged = step;
@@ -470,22 +471,55 @@
       const draft = input.value;
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.continuous = true;  // Chrome must not hang up on a thinking human
       mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
       input.value = '';
-      input.placeholder = 'Listening — speak now…';
+      input.placeholder = 'Take your time — I\u2019m listening\u2026';
+      // Two-scenario endpointing: WE decide when they're done, not Chrome.
+      // Base pause 4s; anyone who pauses and resumes is a thinker (6.5s);
+      // trailing connectives ('and', 'because', 'um'...) buy extra time.
+      // Up-front thinking silence: a generous 75s before giving up.
+      let base = '';
+      let lastHeardAt = Date.now();
+      let sawPauseResume = false;
+      const t0 = Date.now();
+      const CONT = /\b(and|or|but|so|because|like|um|uh|then|also|plus|maybe|well)[\s.]*$/i;
+      let endTimer = null;
+      const armEnd = () => {
+        clearTimeout(endTimer);
+        endTimer = setTimeout(() => {
+          const said = input.value.trim();
+          const idle = Date.now() - lastHeardAt;
+          let cap = sawPauseResume ? 6500 : 4000;
+          if (CONT.test(said)) cap += 2500;
+          if (!said && Date.now() - t0 < 75000) { armEnd(); return; }
+          if (said && idle < cap) { armEnd(); return; }
+          try { rec._finish = true; rec.stop(); } catch {}
+        }, 1200);
+      };
       rec.onresult = e => {
+        const gap = Date.now() - lastHeardAt;
+        if (input.value.trim() && gap > 2000) sawPauseResume = true;
+        lastHeardAt = Date.now();
         let heard = '';
         for (let i = 0; i < e.results.length; i++) heard += e.results[i][0].transcript;
-        input.value = heard.trim();  // their words, appearing as they speak
+        input.value = (base + ' ' + heard).trim();
       };
       rec.onend = () => {
+        // Chrome gave up; if THEY haven't, quietly pick the ear back up.
+        if (!cancelled && rec && !rec._finish && Date.now() - t0 < 90000) {
+          base = input.value.trim();
+          try { rec.start(); return; } catch {}
+        }
+        clearTimeout(endTimer);
         micIdle(); rec = null;
         const said = input.value.trim();
         if (cancelled || !said) { input.value = draft; return; }
         answer(said);
       };
-      rec.onerror = () => { micIdle(); };  // onend always follows and settles state
+      rec.onerror = () => {};  // onend follows and settles state
       rec.start();
+      armEnd();
     };
   }
 
@@ -562,7 +596,7 @@
     const r2 = { node, chunks, rate: recCtx.sampleRate, auto: !!auto, spoke: false, quietMs: 0,
       frames: 0,
       settleMs: 350,  // her own voice tail is still in the room — not an answer
-      timer: setTimeout(hearFinish, 14000),
+      timer: setTimeout(hearFinish, 95000),
       // Dead-pipe watchdog: a capture that never produces a frame ends
       // fast and says so, instead of impersonating a quiet room.
       pulse: setTimeout(() => { if (recording === r2 && !r2.frames) hearFinish(); }, 1500) };
@@ -578,7 +612,14 @@
       if (rms > 0.015) { r2.spoke = true; r2.quietMs = 0; }
       else r2.quietMs += frameMs;
       // A real thinking pause: three seconds, not a nervous one.
-      if ((r2.spoke && r2.quietMs > 3200) || (!r2.spoke && r2.quietMs > 7000)) hearFinish();
+      // Two scenarios, one rule: a pause is only 'done' when it outlasts
+      // this speaker's own habits. Anyone who pauses >2s and RESUMES is a
+      // thinker — their tolerance rises for the rest of the answer. And an
+      // interview question deserves a real thinking silence up front (75s),
+      // not a shot clock.
+      if (r2.quietMs > 2000 && rms > 0.015) r2.pauser = true;
+      const pauseCap = r2.pauser ? 6000 : 3500;
+      if ((r2.spoke && r2.quietMs > pauseCap) || (!r2.spoke && r2.quietMs > 75000)) hearFinish();
     };
     recSrcNode.connect(node); node.connect(recCtx.destination);
     recording = r2;
