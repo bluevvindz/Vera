@@ -63,7 +63,6 @@
 
   /* ---- browser voice out (free) ---- */
   let soundOn = false;
-  let userMuted = false;  // an explicit 🔇 tap is a PREFERENCE — only the 🔊 tap clears it; send()'s gesture-blessing must not
   // Kick the async voice-list load early; browserSpeak hooks onvoiceschanged
   // itself whenever the list hasn't landed yet.
   try { speechSynthesis.getVoices(); } catch {}
@@ -96,8 +95,8 @@
     speakSeq++;  // a baked line supersedes any in-flight synth still fetching
     // She mustn't wake herself: pause the name-listener while a line contains it.
     const risky = wake && NAME_RE.test(text);
-    let myToken = risky ? ++wakeToken : 0;  // let: the synth pause and the orphan duck take their own token below
-    if (risky) wake.pause('speaking');  // ear off, but the chip says WHY — never a blink-out
+    const myToken = risky ? ++wakeToken : 0;
+    if (risky) wake.pause();
     let done = false;
     let watchdog = 0;
     let orphanDuck = false;  // play() died with no media events — the duck-guard's back() will never run
@@ -109,19 +108,15 @@
       if (currentFinish === finish) { currentAudio = null; currentFinish = null; }
       // A duck (or synth pause) this call issued must not outlive it: with
       // no 'ended'/'pause' coming, hand the ear back — unless a capture
-      // owns the pause now, or a NEWER claim (a glance's pause, a fresh
-      // capture) bumped wakeToken after ours: same myToken check the
-      // risky-line resume runs — a stale hold must never hand the ear
-      // back over a foreign pause.
-      if ((orphanDuck || synthPaused) && !risky && wake && !earOpen && !recording
-        && myToken === wakeToken) wake.resume();
+      // owns the pause now.
+      if ((orphanDuck || synthPaused) && !risky && wake && !earOpen && !recording) wake.resume();
       if (risky) setTimeout(() => { if (myToken === wakeToken) wake.resume(); }, 250);
       if (onDone) onDone();
     };
     // Watchdog: audio/speech can be blocked silently, and Chromium's synth
     // stalls without onend on long lines — always advance, or `busy` wedges
     // forever. finish is idempotent, so a late real onend is harmless.
-    watchdog = setTimeout(finish, Math.max(4000, 2500 + text.length * 120));
+    watchdog = setTimeout(finish, Math.max(4000, text.length * 80));
     // Pre-baked neural MP3 for scripted lines — her real voice.
     const src = (window.VERA_VOICE || {})[text];
     if (src) {
@@ -133,16 +128,9 @@
         currentAudio = el;
         currentFinish = finish;
         if (wake && wake.duck) wake.duck();  // pre-play duck: not one word plays quiet
-        el.play().catch(() => {
-          // The duck outlives the dead play() with no media events coming —
-          // take a token so finish can tell OUR hold from a foreign claim
-          // (risky lines already hold one from above).
-          orphanDuck = true;
-          if (!risky && wake) myToken = ++wakeToken;
-          browserSpeak(text, finish);
-        });
+        el.play().catch(() => { orphanDuck = true; browserSpeak(text, finish); });
         return;
-      } catch { orphanDuck = true; /* fall through — the synth pause below takes the token */ }
+      } catch { orphanDuck = true; /* fall through */ }
     }
     // TTS fallback tier: synthesis fires no media-element events, so the
     // duck-guard's back() could never hand the ear back — and per platform
@@ -150,7 +138,7 @@
     // would play her synthesized reply near-silent. Risky-line pattern
     // instead: pause the ear now, resume in finish (watchdog included);
     // wakeToken++ retires any stale resume timer from an earlier line.
-    if (!risky && wake) { myToken = ++wakeToken; wake.pause('speaking'); synthPaused = true; }  // ear off, but the chip says WHY — same '◈ Speaking' state as a ducked MP3 line; the token lets finish tell OUR pause from a later claim
+    if (!risky && wake) { wakeToken++; wake.pause(); synthPaused = true; }
     browserSpeak(text, finish);
   }
   function browserSpeak(text, finish) {
@@ -208,8 +196,8 @@
   // identical in every browser. Falls back to browser TTS tier, then to text.
   function playB64(b64audio, text, onDone) {
     const risky = wake && NAME_RE.test(text);
-    let myToken = risky ? ++wakeToken : 0;  // let: the orphan duck takes its own token below (mirror speakAloud)
-    if (risky) wake.pause('speaking');  // ear off, but the chip says WHY — never a blink-out
+    const myToken = risky ? ++wakeToken : 0;
+    if (risky) wake.pause();
     let done = false;
     let watchdog = 0;
     let orphanDuck = false;  // play() died with no media events — the duck-guard's back() will never run
@@ -219,17 +207,13 @@
       clearTimeout(watchdog);
       if (currentFinish === finish) { currentAudio = null; currentFinish = null; }
       // A duck this call issued must not outlive it: with no 'ended'/'pause'
-      // coming, hand the ear back — unless a capture owns the pause now, or
-      // a NEWER claim bumped wakeToken after ours: same myToken check as
-      // speakAloud's — a stale hold must never hand the ear back over a
-      // foreign pause.
-      if (orphanDuck && !risky && wake && !earOpen && !recording
-        && myToken === wakeToken) wake.resume();
+      // coming, hand the ear back — unless a capture owns the pause now.
+      if (orphanDuck && !risky && wake && !earOpen && !recording) wake.resume();
       if (risky) setTimeout(() => { if (myToken === wakeToken) wake.resume(); }, 250);
       if (onDone) onDone();
     };
     // Watchdog mirrors speakAloud's: a stalled element must never wedge `busy`.
-    watchdog = setTimeout(finish, Math.max(4000, 2500 + text.length * 120));
+    watchdog = setTimeout(finish, Math.max(4000, text.length * 80));
     try {
       stopAudio();
       // The worker's engines return WAV (RIFF → 'UklGR') or MP3 — sniff it.
@@ -240,15 +224,8 @@
       currentAudio = el;
       currentFinish = finish;
       if (wake && wake.duck) wake.duck();  // pre-play duck: not one word plays quiet
-      el.play().catch(() => {
-        // The duck outlives the dead play() with no media events coming —
-        // take a token so finish can tell OUR hold from a foreign claim
-        // (mirror speakAloud; risky lines already hold one from above).
-        orphanDuck = true;
-        if (!risky && wake) myToken = ++wakeToken;
-        finish();
-      });
-    } catch { orphanDuck = true; if (!risky && wake) myToken = ++wakeToken; finish(); }
+      el.play().catch(() => { orphanDuck = true; finish(); });
+    } catch { orphanDuck = true; finish(); }
   }
   let speakSeq = 0;  // supersede token: a newer line silences a stale in-flight one
   async function speakReply(text, onDone) {
@@ -256,25 +233,18 @@
     const stale = () => my !== speakSeq;
     if (API) {
       for (let attempt = 0; attempt < 2; attempt++) {  // synth cold-starts flake once
-        // A stalled response must fall through to the fallbacks, not hang —
-        // and EVERY browser gets the watchdog: where AbortSignal.timeout is
-        // missing, a hand-rolled controller stands in, or a hung /speak
-        // wedges busy forever (typed sends queue eternally, and only a
-        // mic-tap barge-in via replyPlaying could ever escape).
-        const ctrl = AbortSignal.timeout ? null : new AbortController();
-        const ctrlTimer = ctrl ? setTimeout(() => ctrl.abort(), 9000) : 0;
         try {
           const r = await fetch(API + '/speak', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ text }),
-            signal: ctrl ? ctrl.signal : AbortSignal.timeout(9000),
+            // A stalled response must fall through to the fallbacks, not hang.
+            signal: AbortSignal.timeout ? AbortSignal.timeout(9000) : undefined,
           });
           const d = await r.json();
           if (stale()) { if (onDone) onDone(); return; }  // superseded mid-flight
           if (r.ok && d.audio) { playB64(d.audio, text, onDone); return; }
         } catch { /* retry, then fall through */ }
-        finally { if (ctrlTimer) clearTimeout(ctrlTimer); }
         if (stale()) { if (onDone) onDone(); return; }
         await new Promise(res => setTimeout(res, 350));
       }
@@ -290,7 +260,6 @@
   };
   soundBtn.onclick = () => {
     soundOn = !soundOn;
-    userMuted = !soundOn;  // the tap IS the preference, both ways
     soundBtn.textContent = soundOn ? '🔊 SOUND' : '🔇 SOUND';
     // Never speak the confirmation over a live ear — it would land in the
     // capture as "their" words. The toggled icon is confirmation enough.
@@ -302,12 +271,6 @@
       // voice flag FIRST so this flush ends the turn silently and hands
       // control back to the wake word.
       lastInputVoice = false;
-      // …and mute is ENGAGEMENT: the flush can run the tour/handoff walk
-      // line's onDone this very instant, and a visitor who asked for quiet
-      // must not be teleported to the map mid-fade. Same walkCancelled-
-      // before-flush ordering as every other engagement path — the visible
-      // map link remains the door.
-      walkCancelled = true;
       stopAudio(); speechSynthesis.cancel();
     }
   };
@@ -315,13 +278,11 @@
   /* ---- conversation ---- */
   const history = [];
   let busy = false;
-  let turnGen = 0;   // turn-finish generation (mirror of the interview's ansGen): a superseded turn's checkpoints stand down — they must never release busy over a NEW turn, setMode over its stage, or open a followUp ear under its reply
   let replyPlaying = false;  // her reply is on the speakers — a mic tap now means barge-in, not a dead button
-  let pendingSend = [];        // commands that arrived mid-reply wait their turn — drained oldest-first at each turn's finish, never swallowed
+  let pendingSend = null;      // a command that arrived mid-reply waits its turn
   let lastInputVoice = false;  // voice questions earn a hands-free follow-up window
   let summoning = false;       // a 'Yes?' summon ack holds the floor — no other path may open an ear under it
   let tookOver = false;
-  let walkCancelled = false;  // engagement retires the scripted walk to the map (walkTo) — set by send/captures/glance/eye/mute/summon, never cleared
   function takeover() {
     // A visitor stepped up: stop the attract reel, clear the stage, theirs now.
     if (tookOver) return;
@@ -353,42 +314,27 @@
     // next words.
     if (abortCapture) abortCapture();
     recordDiscard();
-    retireBorrow();  // a borrow mid-grant retires too — no rogue ear may outlive the send
-    walkCancelled = true;  // engagement by any modality: the scripted walk to the map stands down for good
-    if (busy) { pendingSend.push(text); return; }  // queued, not swallowed — and never overwritten: the queue drains oldest-first
+    if (busy) { pendingSend = text; return; }  // queued, not swallowed
     takeover();
     primeWeather();
     input.value = '';
     addLine('user', text);
-    // Sending IS the gesture (the element is already blessed) — but an
-    // explicit 🔇 is a preference, and one typed message must not undo it.
-    if (!soundOn && !userMuted) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }
+    if (!soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }  // sending IS the gesture
     if (!API) {
       const line = "The live brain isn't connected on this deployment yet — you're watching the rehearsal. Do try the Brain Map, though: that part is fully live, and I build yours as we talk.";
       setMode('speaking'); addLine('jarvis', line);
-      if (soundOn) speakAloud(line, () => setMode('idle'));
-      else setMode('idle');
+      speakAloud(line, () => setMode('idle'));
       return;
     }
     busy = true;
     setMode('thinking');
     history.push({ role: 'user', content: text });
     let reply;
-    // The /speak watchdog, one tier UP — where the wedge actually lives: a
-    // stalled /chat holds busy for the browser's socket lifetime, and busy
-    // is the whole page (mic dead at its gate, typed sends queueing
-    // invisibly, the eye dead, 'thinking' forever) — on venue WiFi, the
-    // normal demo condition. Brain replies run slower than synth, so the
-    // budget is generous; the catch below already owns the friendly line
-    // and finishTurn releases busy — the abort is the only new part.
-    const ctrl = AbortSignal.timeout ? null : new AbortController();
-    const ctrlTimer = ctrl ? setTimeout(() => ctrl.abort(), 22000) : 0;
     try {
       const r = await fetch(API, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ messages: sendWindow() }),
-        signal: ctrl ? ctrl.signal : AbortSignal.timeout(22000),
       });
       const data = await r.json().catch(() => ({}));
       reply = (r.ok && data.reply) ? String(data.reply).slice(0, 600)
@@ -398,25 +344,16 @@
     } catch {
       reply = 'The uplink hiccuped. Once more, if you please.';
     }
-    finally { if (ctrlTimer) clearTimeout(ctrlTimer); }
     history.push({ role: 'assistant', content: reply });
     setMode('speaking'); addLine('jarvis', reply);
     replyPlaying = true;
-    const myTurn = ++turnGen;  // this finish chain owns the floor until a barge-in retires it
-    const finishTurn = () => {
-      if (myTurn !== turnGen) return;  // superseded: a newer turn owns busy/mode/followUp — stand down
+    speakReply(reply, () => {
       replyPlaying = false;
       setMode('idle'); busy = false;
-      if (pendingSend.length) send(pendingSend.shift());  // oldest first — the rest wait for THAT turn's finish
+      const queued = pendingSend; pendingSend = null;
+      if (queued) send(queued);
       else if (lastInputVoice) followUp();  // conversation mode: no wake word between turns
-      // The retiring path owns wake (mirror sendVoice's resume): a borrow
-      // this send retired mid-grant paused the hotword, and retireBorrow
-      // never touches wake — the turn that retired it hands the ear back
-      // at its finish, and never over a live one.
-      else if (wake && !earOpen && !recording) wake.resume();
-    };
-    if (soundOn) speakReply(reply, finishTurn);
-    else finishTurn();  // muted stays muted — text lands, the turn ends silently
+    });
   }
   sendBtn.onclick = () => { lastInputVoice = false; send(input.value); };
   input.addEventListener('keydown', e => { if (e.key === 'Enter') { lastInputVoice = false; send(input.value); } });
@@ -439,15 +376,12 @@
   let captureOnce = null;
   let abortCapture = null;
   let earOpen = false;  // ANY live ear — SR capture or recorder — one shared claim, nothing double-opens
-  let earClaimGen = 0;  // bumps on EVERY earOpen claim: a borrow continuation must tell a retire (!earOpen) from a NEWER claim that re-took the ear after one — !earOpen alone cannot see the difference
   if (SR) {
     let rec = null;
     let cancelled = false;
-    let foreignCancel = false;  // the abort came from a RETIRING path (send/glance) that owns wake now — onend must not resume over its pause
     abortCapture = () => {  // the send landed another way — this ear retires silently
       if (!rec) return;
       cancelled = true;
-      foreignCancel = true;
       try { rec.abort(); } catch { try { rec.stop(); } catch {} }
     };
     captureOnce = (auto) => {
@@ -456,49 +390,22 @@
         try { rec.abort(); } catch { try { rec.stop(); } catch {} }
         return;
       }
-      // Mirror of recToggle's entry gate: thinking/uplink in flight stays
-      // blocked, but a tap while HER REPLY is on the speakers (or owed —
-      // the /speak fetch window) means barge-in, never a dead button.
-      if (busy && !replyPlaying) return;
       // Mirror of recToggle's entry guard: the ear may already be claimed
       // by ANOTHER path (a live recorder, or a borrow mid-grant) — one SR
       // session per page, and two starters abort each other. Stand down;
       // the claiming path owns the turn.
       if (earOpen || recording) return;
       earOpen = true;  // claim BEFORE the flush below — its onDone chain calls followUp
-      earClaimGen++;   // a stale borrow continuation must never mistake THIS claim for its own
-      walkCancelled = true;  // BEFORE the flush: stopAudio may run the walk line's onDone this very instant
       stopAudio();     // barge-in: a mic tap mid-line means "let me speak" — she yields
-      if (busy && replyPlaying && !currentAudio) {
-        // The /speak fetch window (mirror recToggle): her reply is owed but
-        // hasn't reached the speakers, so there was nothing to flush and
-        // busy still holds. Retire the in-flight synth AND its turn-finish
-        // checkpoints (speakSeq: the stale /speak resolution dies at
-        // stale(); turnGen: the stale chain must never play her reply over
-        // this open ear to be transcribed back as "their" words, release
-        // busy over a NEW turn, or open a followUp ear) — and release the
-        // floor here, ourselves. A send queued mid-window stays queued —
-        // the next turn's finish runs it, as ever.
-        speakSeq++;
-        turnGen++;
-        busy = false;
-        replyPlaying = false;
-      } else if (busy) { earOpen = false; return; }  // the flush handed the turn onward (a queued send owns it) — too early to yield
       takeover();
       if (wake) { wakeToken++; wake.pause(); }  // one recognizer at a time; kill stale resumes
       cancelled = false;
-      foreignCancel = false;
       const draft = input.value;
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
       rec.continuous = true;  // Chrome must not hang up on a thinking human
       mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
-      // A non-empty box is someone's writing (the interview's house rule,
-      // now every ear's): the auto follow-up window fires the instant her
-      // reply ends — precisely when a typing visitor is mid-composition.
-      // Seed the SR base from the box so speech APPENDS, never wipes.
-      const seeded = input.value.trim();
-      if (!seeded) input.value = '';
+      input.value = '';
       input.placeholder = 'Take your time — I’m listening…';
       setMode('listening'); targetLevel = 0.5;
       // Same endpointing as the interview: WE decide when they're done, not
@@ -507,32 +414,12 @@
       // generous 75s, but an AUTO follow-up window bows out at ~11s — a
       // silent visitor must not face a pulsing mic (wake word suspended)
       // for over a minute after she finishes a reply.
-      let base = seeded;
+      let base = '';
       let lastHeardAt = Date.now();
       let sawPauseResume = false;
       const t0 = Date.now();
       const CONT = /\b(and|or|but|so|because|like|um|uh|then|also|plus|maybe|well)[\s.]*$/i;
       let endTimer = null;
-      // Typing IS activity: the box renders the live transcript and invites
-      // correction, but the idle clock reads lastHeardAt — which only
-      // SPOKEN results refresh. A visitor who types instead, or edits the
-      // transcript mid-capture, must not have the half-composed draft
-      // auto-mailed ~5s after their last spoken word. 'input' fires for
-      // real keystrokes only — never for onresult's programmatic
-      // assignments — so a keystroke holds the floor as surely as a word.
-      // And the correction must SURVIVE: onresult rebuilds the box
-      // wholesale (base + heard), so the very next result — even an
-      // interim-to-final refinement of words already spoken, with the room
-      // silent — would stomp the edit mid-keystroke. Fold the edited box
-      // into base instead: abort the recognizer, and the onend keep-alive's
-      // base-fold + restart picks the ear back up appending to THEIR text.
-      const onType = () => {
-        lastHeardAt = Date.now();
-        // Past the 90s wall this abort is the capture's LAST event — mark
-        // the cause, so onend can tell a keystroke from an endpoint.
-        if (rec) { rec._typed = true; try { rec.abort(); } catch { try { rec.stop(); } catch {} } }
-      };
-      input.addEventListener('input', onType);
       const armEnd = () => {
         clearTimeout(endTimer);
         endTimer = setTimeout(() => {
@@ -557,52 +444,25 @@
         // Chrome gave up; if THEY haven't, quietly pick the ear back up.
         if (!cancelled && rec && !rec._finish && Date.now() - t0 < 90000) {
           base = input.value.trim();
-          try { rec.start(); rec._typed = false; return; } catch {}
+          try { rec.start(); return; } catch {}
         }
-        const blocked = !!(rec && rec._blocked);
-        const typedOut = !!(rec && rec._typed && !rec._finish);  // the 90s wall met a keystroke, not an endpoint
         clearTimeout(endTimer);
-        input.removeEventListener('input', onType);  // the capture's clock dies with it
         micIdle(); rec = null;
         earOpen = false;
         const said = input.value.trim();
         if (cancelled || !said) {
           input.value = draft;
-          // Honest copy at a blocked mic (demo_wake's pattern) — never a
-          // silent draft restore after a pulsing ear that could not hear.
-          if (blocked) input.placeholder = 'Mic blocked — type instead';
-          if (!busy) setMode('idle');
-        } else if (typedOut) {
-          // The 90s wall met a KEYSTROKE, not an endpoint: the abort that
-          // landed here came from onType, with the visitor mid-edit — the
-          // clock must not stop respecting keystrokes at exactly the
-          // boundary, auto-sending a half-edited box. Hand back to manual:
-          // their words stay in the box, and Enter/SEND submits when THEY
-          // decide.
           if (!busy) setMode('idle');
         } else {
           input.value = '';
           lastInputVoice = true;
           send(said);
         }
-        // A FOREIGN abort (send/glance retired this ear) owns wake now: its
-        // turn-finish resumes the hotword — resuming here would arm it over
-        // a flow that deliberately paused it (a glance's screen picker).
-        if (wake && !foreignCancel) wake.resume();
+        if (wake) wake.resume();
       };
-      rec.onerror = ev => {
-        // 'not-allowed' must not spin the keep-alive loop (onerror → onend →
-        // start → onerror… for up to 90 pulsing seconds at a mic that can
-        // never hear): settle NOW — onend sees _finish and stands down —
-        // and let onend surface the honest copy.
-        if (rec && ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed')) {
-          rec._finish = true;
-          rec._blocked = true;
-        }
-      };
+      rec.onerror = () => {};  // onend always follows and settles state
       try { rec.start(); } catch {
         // A recognizer that can't even start must not hold the ear claim.
-        input.removeEventListener('input', onType);
         micIdle(); rec = null; earOpen = false;
         input.value = draft;
         if (!busy) setMode('idle');
@@ -651,26 +511,11 @@
   }
 
   let recStream = null, recCtx = null, recSrcNode = null;
-  let earsGen = 0;        // generation token (ported from the interview): a stale borrow must never clobber a newer one
-  let earBorrow = false;  // a grant is pending — the ear claim exists with no capture behind it yet
   function releaseEars() {
-    earsGen++;  // any borrow still awaiting its grant is now stale — it stands down
     try { if (recStream) recStream.getTracks().forEach(t => { t.onended = null; t.stop(); }); } catch {}
     recStream = null;
     try { if (recCtx) recCtx.close(); } catch {}
     recCtx = null; recSrcNode = null;
-  }
-  function retireBorrow() {
-    // The third retire path, same one-rule: a borrow mid-grant (mic tapped,
-    // permission prompt still up) is invisible to abortCapture (no SR
-    // session yet) and to recordDiscard (`recording` is still null). Bump
-    // the generation so the surviving continuation stands down instead of
-    // opening a capture under her incoming reply, and clear the claim it
-    // held — the retiring path owns the turn now.
-    if (!earBorrow) return;
-    earBorrow = false;
-    earsGen++;
-    earOpen = false;
   }
   async function ensureEars() {
     // Borrow-per-listen — the WHOLE audio session, not just the stream. The
@@ -681,21 +526,10 @@
     // each listen gets a context born fresh — created BEFORE the await,
     // inside the tap when there is one, which is when iOS lets it run.
     releaseEars();
-    const gen = ++earsGen;
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new Ctx();
-    recCtx = ctx;
-    let stream = null;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {}
-    if (gen !== earsGen) {
-      // Superseded (or retired) while the grant was pending — stand down
-      // without touching the newer borrow's stream or context.
-      try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
-      try { ctx.close(); } catch {}
-      return false;
-    }
-    if (!stream) { recStream = null; return false; }
-    recStream = stream;
+    recCtx = new Ctx();
+    try { recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { recStream = null; return false; }
     recSrcNode = recCtx.createMediaStreamSource(recStream);
     return true;
   }
@@ -714,8 +548,6 @@
       return;
     }
     earOpen = true;  // claim BEFORE the flush — its onDone chain calls followUp
-    const myClaim = ++earClaimGen;  // the generation this borrow serves — checked after the grant await
-    walkCancelled = true;  // BEFORE the flush: stopAudio may run the walk line's onDone this very instant
     // Barge-in, mirror of captureOnce: silence her mid-reply BEFORE opening
     // the capture — her own words must never be recorded and mailed to
     // /voice as "their" speech.
@@ -724,38 +556,15 @@
       // The /speak fetch window: her reply is owed but hasn't reached the
       // speakers, so there was nothing to flush and busy still holds.
       // replyPlaying exists precisely so a tap here is barge-in, not a dead
-      // button — retire the in-flight synth AND its turn-finish checkpoints
-      // (turnGen: the stale chain must never release busy over the NEW turn,
-      // setMode('idle') over its 'thinking', or read the LIVE lastInputVoice
-      // and open a followUp ear under a reply still in flight), and release
-      // the floor here, ourselves. A send queued mid-window stays queued —
-      // the next turn's resume runs it, as ever.
+      // button — retire the in-flight synth (its stale() checkpoint runs
+      // onDone, which releases busy via resume) and open the ear now.
       speakSeq++;
-      turnGen++;
-      busy = false;
-      replyPlaying = false;
     } else if (busy) { earOpen = false; return; }  // the flush handed the turn onward (a queued send owns it) — too early to yield
     const tc = document.getElementById('talk-chip');
     if (tc) tc.remove();
     takeover();
     if (wake) { wakeToken++; wake.pause(); }
-    earBorrow = true;  // the grant window: send()/glance() retire this claim via retireBorrow
-    let earsOk = false;
-    try { earsOk = await ensureEars(); } catch { earsOk = false; }
-    if (!earOpen || myClaim !== earClaimGen) {
-      // Retired mid-grant (a typed send or a glance claimed the turn while
-      // the permission prompt lingered), or a NEWER claim re-took the ear
-      // after such a retire (a fresh mic tap, a summon window): stand down
-      // silently — opening now would put a live recorder under her incoming
-      // reply, recorded and re-mailed to /voice as "their" words. The
-      // retiring/claiming path owns busy/mode/wake — and earBorrow — now;
-      // release only OUR borrow (a superseded ensureEars already cleaned
-      // itself up).
-      if (earsOk) releaseEars();
-      return;
-    }
-    earBorrow = false;  // the grant window closed with this claim still ours
-    if (!earsOk) {
+    if (!(await ensureEars())) {
       earOpen = false;
       if (captureOnce) { captureOnce(auto); return; }
       // No browser SR to fall back to (every iPhone): say so, never die mute.
@@ -782,15 +591,6 @@
       // fast and say so — a dead processor must never impersonate a quiet
       // room for ninety-five silent seconds.
       pulse: setTimeout(() => { if (recording === rec && !rec.frames) recordFinish(); }, 1500) };
-    // Typing IS activity — the SR tier's rule, owed to the ONLY path an
-    // iPhone has: the quiet clock below reads quietMs, which only RMS
-    // zeroes, so a visitor who TYPES their follow-up instead of speaking
-    // would read as a silent room and be bowed out mid-keystroke at 12s,
-    // their half-typed message stomped by the stale draft restore. A
-    // keystroke holds the floor as surely as a spoken word ('input' fires
-    // for real keystrokes only — the recorder never writes the box).
-    rec.onType = () => { rec.quietMs = 0; };
-    input.addEventListener('input', rec.onType);
     node.onaudioprocess = e => {
       rec.frames++;
       const d = e.inputBuffer.getChannelData(0);
@@ -817,15 +617,8 @@
     recSrcNode.connect(node); node.connect(recCtx.destination);
     recording = rec;
     mic.classList.add('rec');
-    // Recorder-tier tap grammar: a tap on a LIVE recorder SENDS (recToggle →
-    // recordFinish) in BOTH window kinds — '◉ LISTENING' alone belongs to
-    // the SR tier, where the same pulse means tap-to-CANCEL. State the
-    // tap's real meaning, auto windows included, and a tap-to-shut-it-up
-    // never mails a half-sentence by surprise.
-    mic.textContent = auto ? '◉ TAP TO SEND' : '◉ TAP WHEN DONE';
-    // The recorder inherits the same rule: a non-empty box is a live
-    // composition — an auto-opened window must never wipe it.
-    if (!input.value.trim()) input.value = '';
+    mic.textContent = auto ? '◉ LISTENING' : '◉ TAP WHEN DONE';
+    input.value = '';
     input.placeholder = auto ? 'Go on — I’m still listening…'
       : 'Listening — speak, then tap the mic to finish…';
     setMode('listening'); targetLevel = 0.5;
@@ -837,7 +630,6 @@
     recording = null;
     earOpen = false;
     clearTimeout(r.timer); clearTimeout(r.pulse);
-    input.removeEventListener('input', r.onType);  // the capture's clock dies with it
     try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
     // RELEASE the whole session between listens: a held stream flips iOS
@@ -846,9 +638,7 @@
     releaseEars();
     micIdle();
     if (!r.frames) {
-      // Their typed draft survives a dead pipe — and fresh typing beats the
-      // stale snapshot: restore only into an empty box.
-      if (!input.value.trim()) input.value = r.draft;
+      input.value = r.draft;  // their typed draft survives a dead pipe
       // Not one frame arrived — the pipe was dead, not the room quiet.
       addLine('jarvis', 'My ears cut out for a moment \u2014 tap the mic and I\u2019ll listen again.');
       setMode('idle');
@@ -857,9 +647,7 @@
     }
     let total = 0; for (const c of r.chunks) total += c.length;
     if ((r.auto && !r.spoke) || total < r.rate * 0.4) {
-      // Their typed draft survives a silent bow-out — and fresh typing
-      // beats the stale snapshot: restore only into an empty box.
-      if (!input.value.trim()) input.value = r.draft;
+      input.value = r.draft;  // their typed draft survives a silent bow-out
       setMode('idle');
       if (wake) wake.resume();  // silence: the exchange is over, her name resumes duty
       return;
@@ -877,7 +665,6 @@
     recording = null;
     earOpen = false;
     clearTimeout(r.timer); clearTimeout(r.pulse);
-    input.removeEventListener('input', r.onType);  // the capture's clock dies with it
     try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
     releaseEars();
@@ -891,34 +678,24 @@
     setMode('thinking');
     input.placeholder = 'On the wires…';
     let d = null;
-    // send()'s watchdog, recorder tier: /voice carries the upload, Whisper,
-    // the brain AND the synth in one round trip — but a stalled socket must
-    // never hold busy for its lifetime. On iPhone this recorder is the ONLY
-    // voice path, so a wedge here is a dead mic with no alternative. The
-    // uplink line below and resume() already own the failure — abort only.
-    const ctrl = AbortSignal.timeout ? null : new AbortController();
-    const ctrlTimer = ctrl ? setTimeout(() => ctrl.abort(), 25000) : 0;
     try {
       const r = await fetch(API + '/voice', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ audio: b64FromBuf(wavBuf), messages: sendWindow() }),
-        signal: ctrl ? ctrl.signal : AbortSignal.timeout(25000),
       });
       d = await r.json().catch(() => null);
     } catch { d = null; }
-    finally { if (ctrlTimer) clearTimeout(ctrlTimer); }
     input.placeholder = idleHint;
     // busy HOLDS through playback (mirror send()): while her reply speaks, a
     // typed send must queue — not bypass the queue and stomp the stage — and
     // a mic tap reads as barge-in via replyPlaying, not a free pass.
-    const myTurn = ++turnGen;  // this finish chain owns the floor until a barge-in retires it
     const resume = () => {
-      if (myTurn !== turnGen) return;  // superseded: a newer turn owns busy/mode/followUp — stand down
       busy = false;
       replyPlaying = false;
       setMode('idle');
-      if (pendingSend.length) { send(pendingSend.shift()); return; }  // oldest first — the rest wait for that turn's finish
+      const queued = pendingSend; pendingSend = null;
+      if (queued) { send(queued); return; }
       if (lastInputVoice) followUp();     // keep the conversation going hands-free
       // Never over a live ear: a fetch-window barge-in retires this reply,
       // and its deferred release lands AFTER the new capture opened.
@@ -928,30 +705,19 @@
     // a typed half-message from before the mic tap must survive every path
     // where their speech produced no sent turn.
     if (d && d.error === 'silence') {
-      if (!input.value.trim()) input.value = draft || '';  // fresh typing beats the stale snapshot — restore only into an empty box
+      input.value = draft || '';
       addLine('jarvis', 'I didn’t catch that — do try again, a touch closer to the microphone.');
       resume(); return;
     }
-    // Error lines honor the mute like every sibling (the happy path, the
-    // glance, the silence path above): userMuted's contract says only the
-    // SOUND tap clears it — an error must not speak over it. Gate the way
-    // glance does, and claim replyPlaying only when audio will actually
-    // play — a barge-in target that never reaches the speakers is a lie.
     if (d && d.error === 'rate_limited') {
-      if (!input.value.trim()) input.value = draft || '';  // fresh typing beats the stale snapshot — restore only into an empty box
+      input.value = draft || '';
       const line = 'You have rather exhausted my public allowance for the moment — do return later, or contact the management for the full experience.';
-      addLine('jarvis', line);
-      if (soundOn) { replyPlaying = true; speakAloud(line, resume); }
-      else resume();
-      return;
+      addLine('jarvis', line); replyPlaying = true; speakAloud(line, resume); return;
     }
     if (!d || !d.reply) {
-      if (!input.value.trim()) input.value = draft || '';  // fresh typing beats the stale snapshot — restore only into an empty box
+      input.value = draft || '';
       const line = 'The uplink hiccuped. Once more, if you please.';
-      addLine('jarvis', line);
-      if (soundOn) { replyPlaying = true; speakAloud(line, resume); }
-      else resume();
-      return;
+      addLine('jarvis', line); replyPlaying = true; speakAloud(line, resume); return;
     }
     if (d.heard) { addLine('user', d.heard); history.push({ role: 'user', content: d.heard }); }
     history.push({ role: 'assistant', content: d.reply });
@@ -1005,70 +771,29 @@
     // and mail it back as "their" words.
     if (abortCapture) abortCapture();
     recordDiscard();
-    retireBorrow();  // a borrow mid-grant retires too — no rogue ear may outlive the glance
-    walkCancelled = true;  // showing her something is engagement — the scripted walk stands down
     takeover();
     if (wake) { wakeToken++; wake.pause(); }
     const frame = await grabFrame(kind);
-    // Never over a live ear: a mic tap during the picker claimed it and
-    // owns the pause now (same guard as every terminal resume).
-    if (!frame) { if (wake && !earOpen && !recording) wake.resume(); return; }
-    // A turn that COMPLETED in the picker gap owns the floor: a tap-to-send
-    // on the recorder (or the SR endpoint) already set busy with its fetch
-    // in flight, and the triple retire below kills only LIVE ears — running
-    // on would stomp busy over a real turn and race two replies, whichever
-    // lands second flushing the first mid-word. That turn's finish owns
-    // busy/mode/wake now: stand down, the frame dies unsent.
-    if (busy) return;
-    // The picker gap is interactive and LONG (Firefox's non-modal picker,
-    // camera permission prompts, the exposure settle) — and busy stayed
-    // false the whole way, so a mic tap or the summon's deferred window
-    // passed captureOnce's guards and holds a live ear NOW. Same one-rule
-    // as entry: the reply this frame is about to earn retires every ear
-    // first, or her /see answer plays into the capture — ducked
-    // near-silent on Android — and mails back as "their" next words.
-    if (abortCapture) abortCapture();
-    recordDiscard();
-    retireBorrow();
+    if (!frame) { if (wake) wake.resume(); return; }
     busy = true;
     setMode('thinking');
     addLine('user', kind === 'screen' ? '◎ (showed her the screen)' : '◎ (showed her the camera)');
     let d = null;
-    // The third of the three primary fetches gets the same watchdog: a
-    // stalled /see would hold busy forever with the eye dead at its own
-    // gate. Vision runs on the brain's clock — same generous budget; the
-    // error line below and resume() already own the failure.
-    const ctrl = AbortSignal.timeout ? null : new AbortController();
-    const ctrlTimer = ctrl ? setTimeout(() => ctrl.abort(), 25000) : 0;
     try {
       const r = await fetch(API + '/see', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ image: frame, messages: sendWindow() }),
-        signal: ctrl ? ctrl.signal : AbortSignal.timeout(25000),
       });
       d = await r.json().catch(() => null);
     } catch { d = null; }
-    finally { if (ctrlTimer) clearTimeout(ctrlTimer); }
-    // busy HOLDS through playback (the house rule — mirror sendVoice): a
-    // typed send mid-reply queues instead of stomping the stage, a mic tap
-    // reads as barge-in via replyPlaying, a second eye click stays blocked —
-    // and this finish chain stands down at turnGen if a barge-in retires it.
-    const myTurn = ++turnGen;  // this finish chain owns the floor until a barge-in retires it
-    const resume = () => {
-      if (myTurn !== turnGen) return;  // superseded: a newer turn owns busy/mode/wake — stand down
-      busy = false;
-      replyPlaying = false;
-      setMode('idle');
-      if (pendingSend.length) { send(pendingSend.shift()); return; }  // oldest first — the rest wait for that turn's finish
-      if (wake && !earOpen && !recording) wake.resume();  // never over a live ear
-    };
+    busy = false;
+    const resume = () => { setMode('idle'); if (wake) wake.resume(); };
     if (!d || !d.reply) {
       const line = d && d.error === 'rate_limited'
         ? 'My eyes have had rather a full day — do show me again tomorrow.'
         : 'I couldn’t quite make that out. Once more, if you please.';
       addLine('jarvis', line);
-      replyPlaying = true;
       if (soundOn) speakReply(line, resume); else resume();
       return;
     }
@@ -1078,7 +803,6 @@
     );
     setMode('speaking');
     addLine('jarvis', d.reply);
-    replyPlaying = true;
     if (d.audio && soundOn) playB64(d.audio, d.reply, resume);
     else if (soundOn) speakReply(d.reply, resume);
     else resume();
@@ -1108,12 +832,6 @@
   }
   eye.onclick = () => {
     if (busy || !API) return;
-    // Engagement BEFORE the branch: on desktop the picker sits open up to
-    // 8s before glance() ever runs, and a tour/handoff line ending in that
-    // window would navigate to the map over the visitor's in-progress
-    // choice — same walkCancelled-before-anything ordering as the four
-    // other engagement paths.
-    walkCancelled = true;
     if (canScreen && canCam) pickSight();
     else glance(canScreen ? 'screen' : 'camera');
   };
@@ -1133,14 +851,6 @@
   let lastWake = -1e9;
   const wake = window.VERA_WAKE
     ? window.VERA_WAKE.init({ onWake: (cmd) => {
-        // A summon is engagement by any modality — the sixth path, same
-        // walkCancelled-before-flush ordering as the other five: the 'Yes?'
-        // ack's stopAudio can run the tour/handoff walk line's onDone this
-        // very instant (takeover() is spent by then — the entry gate
-        // consumed the latch), and a visitor summoning her must not be
-        // teleported to the map mid-summon. The visible map link remains
-        // the door.
-        walkCancelled = true;
         const now = performance.now();
         if (now - lastWake < 3000) { if (wake) wake.resume(); return; }  // no "yes yes yes" parroting
         lastWake = now;
@@ -1162,13 +872,6 @@
         // mails the ack back as "their" words. followUp respects this
         // flag; the deferred window below clears it.
         summoning = true;
-        // The summon is a floor-claimer like every other (captureOnce,
-        // recToggle, glance all bump first, for exactly this): retire any
-        // stale risky-resume timer NOW, or a chip-click barge-in over a
-        // risky line re-arms the wake ear under the playing ack — Android
-        // ducks its tail, and the deferred window's SR start can throw
-        // against the re-armed ear, costing the summon.
-        if (wake) wakeToken++;
         const then = () => {
           if (acked) return;
           acked = true;
@@ -1183,14 +886,10 @@
           // instead of recording it. GUARDED: if the user's own mic tap
           // (or any other path) claimed the ear by that tick, this window
           // yields — only ONE ear may ever open per summon, and it must
-          // never be killed by its own deferral. A turn in flight owns the
-          // floor the same way (a late 'Yes?' finish — the 4s watchdog, or
-          // a flush by the reply's own playback — lands with busy held):
-          // the window yields to busy as it yields to a claimed ear, never
-          // barging an unrequested LISTENING window over her fresh reply.
+          // never be killed by its own deferral.
           setTimeout(() => {
             summoning = false;
-            if (captureOnce && !busy && !earOpen && !recording) captureOnce(true);
+            if (captureOnce && !earOpen && !recording) captureOnce(true);
           }, 0);
         };
         // Managed player, never a raw element grab: a reply arriving
@@ -1283,20 +982,6 @@
     });
   }
 
-  // The walk to the map is CANCELLABLE — the montage's own busy guard,
-  // carried through the walk line itself. tour()/handoff() hand go/grow
-  // to a spoken line's onDone, and that onDone fires from places
-  // engagement owns: a barge-in's stopAudio flushes it instantly,
-  // speakAloud's watchdog fires it late, a typed send lets it land under
-  // a live turn — each one navigating away with the visitor's in-flight
-  // question and reply. Engagement by ANY modality (a send, a claimed
-  // ear, a glance, a queued message) stands the navigation down; the
-  // visible map link stays as the door for a visitor who took the floor.
-  function walkTo(url) {
-    if (walkCancelled || busy || earOpen || recording || pendingSend.length) return;
-    location.href = url;
-  }
-
   // Entry gate: one click = sound on + wake armed. Strangers get GUIDED:
   // no Seed yet → she walks them to the live profile creation herself. The
   // demo never depends on anyone discovering the Brain Map link.
@@ -1304,17 +989,8 @@
     if (voice && !soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }
     if (!window.VERA_SEED && window.VERA_ENTRY.fresh) {
       takeover();  // the reel yields — introductions come first
-      const go = () => walkTo('map.html?demo=1&go=1');
-      // The walk line answers to the same doctrine as every reply path: a
-      // 🔇 mid-montage set walkCancelled, and a full-voice invitation over
-      // that explicit mute — promising a walk walkTo will refuse — is
-      // doubly wrong. Cancelled: skip entirely, the visible map link is
-      // the door. Muted-but-walking: keep the promise silently.
-      const tour = () => {
-        if (walkCancelled) return;
-        if (soundOn) speakAloud("First, let's get acquainted — introduce yourself, and watch me grow your second brain, live.", go);
-        else go();
-      };
+      const go = () => { location.href = 'map.html?demo=1&go=1'; };
+      const tour = () => speakAloud("First, let's get acquainted — introduce yourself, and watch me grow your second brain, live.", go);
       if (voice && window.VERA_BOOT) {
         // FIRST CONTACT: the show plays BEFORE the interview — most visitors
         // come exactly once, and the best 30 seconds must not wait for a
@@ -1353,15 +1029,8 @@
       // it live. (Kevin, 2026-07-28: no detour questions; the value IS the
       // map. The care layer lives in the production app, not the demo.)
       takeover();
-      const grow = () => walkTo('map.html?demo=1&grow=1');
-      // Same gate as tour(): never the full-voice invitation over an
-      // explicit mute, never a promise walkTo will refuse. Cancelled skips
-      // (the map link is the door); muted keeps the promise silently.
-      const handoff = () => {
-        if (walkCancelled) return;
-        if (soundOn) speakAloud("Now — your map has been waiting. Let's grow it.", grow);
-        else grow();
-      };
+      const grow = () => { location.href = 'map.html?demo=1&grow=1'; };
+      const handoff = () => speakAloud("Now — your map has been waiting. Let's grow it.", grow);
       if (voice) {
         const s = window.VERA_SEED;
         if (window.VERA_BOOT) {

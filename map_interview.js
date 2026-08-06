@@ -53,8 +53,7 @@
   const qEl = document.createElement('div'); qEl.id = 'vera-q';
   const bar = document.createElement('div'); bar.id = 'map-talk';
   const mic = document.createElement('button'); mic.textContent = '🎙'; mic.type = 'button';
-  const input = document.createElement('input');
-  input.maxLength = 500;  // ONE limit across modalities: the freestyle slice takes 500 — a typed story must fit everything a spoken one can
+  const input = document.createElement('input'); input.maxLength = 60;
   input.placeholder = 'Type your answer… or press the mic';
   const go = document.createElement('button'); go.textContent = 'ANSWER'; go.type = 'button';
   bar.append(mic, input, go);
@@ -95,7 +94,7 @@
     sayFinish = finish;
     if (!soundOn || earLive) { sayTimer = setTimeout(finish, 900 + text.length * 35); return; }  // text-only pace
     // Watchdog: audio/speech can be blocked silently — always advance.
-    sayTimer = setTimeout(finish, Math.max(4000, 2500 + text.length * 120));
+    sayTimer = setTimeout(finish, Math.max(4000, text.length * 80));
 
     // Scripted lines ship as pre-baked neural MP3s (her REAL voice), played
     // through ONE shared element — iOS WebKit only trusts a tap-blessed one.
@@ -310,13 +309,7 @@
         // ear with speech in it — or an answer already on the wires — defers
         // exactly as before.
         const silentSR = () => srLive() && !input.value.trim();
-        // The LIVE box, never the pre-capture snapshot (mirror silentSR):
-        // recording.draft froze at capture open, so a visitor TYPING their
-        // answer into the auto ear right now has words in input.value and
-        // none in the stale draft — and a nudge that read the draft would
-        // close their ear, imply they haven't answered, and let the reopen
-        // wipe their half-typed words. Typing IS answering.
-        const silentRec = !!recording && !recording.spoke && !input.value.trim();
+        const silentRec = !!recording && !recording.spoke && !recording.draft.trim();
         const deliver = () => {
           nudged = step;
           const nline = (steps[step] && steps[step].nudge) || NUDGES[step];
@@ -629,44 +622,19 @@
       rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
       rec.continuous = true;  // Chrome must not hang up on a thinking human
       mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
-      // A non-empty box is someone's writing (the recorder's house rule,
-      // now every ear's): an auto-reopened ear must never wipe a live
-      // composition — it seeds its base from the box so speech APPENDS.
-      const seeded = input.value.trim();
-      if (!seeded) input.value = '';
+      input.value = '';
       input.placeholder = 'Take your time — I\u2019m listening\u2026';
       // Two-scenario endpointing: WE decide when they're done, not Chrome.
       // Base pause 5s — generous enough that the FIRST thinking pause
       // survives too, not just the second; pause-and-resumers get 6.5s;
       // trailing connectives ('and', 'because', 'um'...) buy extra time.
       // Up-front thinking silence: a generous 75s before giving up.
-      let base = seeded;
+      let base = '';
       let lastHeardAt = Date.now();
       let sawPauseResume = false;
       const t0 = Date.now();
       const CONT = /\b(and|or|but|so|because|like|um|uh|then|also|plus|maybe|well)[\s.]*$/i;
       let endTimer = null;
-      // Typing IS activity (demo_live's rule, same cure): the box renders
-      // the live transcript and invites correction, but the idle clock
-      // reads lastHeardAt — which only SPOKEN results refresh. A visitor
-      // who types instead, or edits the transcript mid-capture, must not
-      // have the half-composed draft auto-answered ~5s after their last
-      // spoken word. 'input' fires for real keystrokes only — never for
-      // onresult's programmatic assignments — so a keystroke holds the
-      // floor as surely as a word.
-      // And the correction must SURVIVE: onresult rebuilds the box
-      // wholesale (base + heard), so the very next result — even an
-      // interim-to-final refinement of words already spoken, with the room
-      // silent — would stomp the edit mid-keystroke. Fold the edited box
-      // into base instead: abort the recognizer, and the onend keep-alive's
-      // base-fold + restart picks the ear back up appending to THEIR text.
-      const onType = () => {
-        lastHeardAt = Date.now();
-        // Past the 90s wall this abort is the capture's LAST event — mark
-        // the cause, so onend can tell a keystroke from an endpoint.
-        if (rec) { rec._typed = true; try { rec.abort(); } catch { try { rec.stop(); } catch {} } }
-      };
-      input.addEventListener('input', onType);
       const armEnd = () => {
         clearTimeout(endTimer);
         endTimer = setTimeout(() => {
@@ -691,21 +659,14 @@
         // Chrome gave up; if THEY haven't, quietly pick the ear back up.
         if (!cancelled && rec && !rec._finish && Date.now() - t0 < 90000) {
           base = input.value.trim();
-          try { rec.start(); rec._typed = false; return; } catch {}
+          try { rec.start(); return; } catch {}
         }
-        const blocked = !!(rec && rec._blocked);
-        const typedOut = !!(rec && rec._typed && !rec._finish);  // the 90s wall met a keystroke, not an endpoint
         clearTimeout(endTimer);
-        input.removeEventListener('input', onType);  // the capture's clock dies with it
         micIdle(); rec = null;
         micBusy = false;
         const said = input.value.trim();
         if (cancelled || !said) {
-          // No answer landed — never leave the reactor stuck on 'speaking'.
-          // But an owner already mid-line (answer()'s ack after abortSR —
-          // sayFinish pending) holds the stage: mirror demo_live's !busy
-          // guard, or this async settle stamps 'idle' over her spoken ack.
-          if (!sayFinish) jstate = 'idle';
+          jstate = 'idle';  // no answer landed — never leave the reactor stuck on 'speaking'
           input.value = draft;
           // Either way the hand-back-to-manual is FINAL for this question:
           // kill the pending nudge, or within 12s she'd contradict herself
@@ -713,16 +674,6 @@
           // mic-off — they re-engage by tap or typing.
           if (cancelled) {
             clearTimeout(nudgeTimer); nudged = step;
-          } else if (blocked) {
-            // Permission denied: the keep-alive restart and the 'tap the
-            // mic' soft door are both lies at a blocked mic. Honest copy
-            // (demo_wake's pattern), typing takes over, and the hands-free
-            // chain stands down — a deliberate tap can still retry.
-            clearTimeout(nudgeTimer); nudged = step;
-            voiceMode = false;  // autoListen must not reopen a mic that cannot hear
-            input.placeholder = 'Mic blocked — simply type your answer';
-            if (awaiting && step < steps.length)
-              say('It seems your microphone is blocked — do simply type your answers.', null, 'idle');
           } else if (awaiting && step < steps.length) {
             // 75 quiet seconds must not end in a silent dead mic — leave a
             // soft door open. (A deliberate cancel tap stays silent, and the
@@ -734,36 +685,13 @@
           }
           return;
         }
-        if (typedOut) {
-          // The 90s wall met a KEYSTROKE, not an endpoint: the abort that
-          // landed here came from onType, with the visitor mid-edit — the
-          // clock must not stop respecting keystrokes at exactly the
-          // boundary, auto-answering a half-edited box. Hand back to manual
-          // (a cancel tap's finality): their words stay in the box,
-          // Enter/ANSWER submits when THEY decide, and no nudge reopens
-          // the ear they just out-typed.
-          if (!sayFinish) jstate = 'idle';
-          clearTimeout(nudgeTimer); nudged = step;
-          return;
-        }
         answer(said);
       };
-      rec.onerror = ev => {
-        // 'not-allowed' must not spin the keep-alive loop (onerror → onend →
-        // start → onerror… — ~12s of pulsing LISTENING until the nudge's
-        // silentSR abort, then autoListen reopens the loop): settle NOW —
-        // onend sees _finish and stands down — and let onend surface the
-        // honest copy instead of the misleading soft door.
-        if (rec && ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed')) {
-          rec._finish = true;
-          rec._blocked = true;
-        }
-      };
+      rec.onerror = () => {};  // onend follows and settles state
       try { rec.start(); } catch {
         // A recognizer that can't even start must not strand micBusy with a
         // pulsing mic and no endTimer — that kills autoListen and loops the
         // nudge forever. Restore everything and hand back to the buttons.
-        input.removeEventListener('input', onType);
         micIdle(); rec = null; micBusy = false;
         jstate = 'idle';  // the ear never opened — don't leave 'listening' pulsing
         input.value = draft;
@@ -842,36 +770,13 @@
     return buf;
   }
   async function listenOnce(auto) {
-    // demo_live's earOpen gate, recorder tier: a second tap while the FIRST
-    // borrow still awaits its grant must not open a concurrent one — two
-    // borrows resolve in either order, and either way one path stomps the
-    // other's micBusy claim (or both die, and the visitor who tapped twice
-    // reads 'Tap the mic so she can listen'). One borrow at a time, same
-    // rule as one ear.
-    if (recording || micBusy) return;
+    if (recording) return;
     micBusy = true;  // covers the getUserMedia await too — no nudge over a borrowing ear, and the claim precedes the flush
-    const gen = ansGen;  // the answer generation this borrow serves — a typed answer mid-grant retires it
     voiceMode = true;
     if (!auto) { bargeInFlush(); jstate = 'listening'; }  // a mic tap mid-line means "let me speak" — she yields, the flow still advances; the reactor shows the ear
     let ok = false;
     try { ok = await ensureEars(); } catch { ok = false; }  // a rejection must never strand micBusy
-    if (!micBusy || gen !== ansGen) {
-      // Superseded during the grant: the visitor answered by typing while
-      // the permission prompt lingered, and answer() retires only LIVE
-      // ears — hearDiscard no-ops while `recording` is still null — so
-      // THIS borrow must stand itself down, or it opens a rogue capture
-      // under her ack/next-question audio and hearFinish mails her own
-      // voice back as the next answer. (micBusy is the claim answer()
-      // clears; the gen check is belt-and-braces.) Release only OUR
-      // borrow: a superseded ensureEars already cleaned itself up, and
-      // earsGen may belong to a newer listen by now.
-      if (ok) releaseEars();
-      return;
-    }
     if (!ok) {
-      // Ours to clear: the superseded gate above already stood down if this
-      // claim was retired or re-taken — reaching here means the claim is
-      // still current, so this can never stomp a newer borrow's micBusy.
       micBusy = false;
       jstate = 'idle';  // the ear never opened — don't leave 'listening' pulsing
       // Never die silently: the visitor must know one tap fixes hearing.
@@ -893,16 +798,6 @@
       // Dead-pipe watchdog: a capture that never produces a frame ends
       // fast and says so, instead of impersonating a quiet room.
       pulse: setTimeout(() => { if (recording === r2 && !r2.frames) hearFinish(); }, 1500) };
-    // Typing IS activity — the SR tier's rule (demo_live's recorder carries
-    // it too), owed doubly here on the ONLY voice path an iPhone has: the
-    // quiet clock below reads quietMs, which only RMS zeroes, so a visitor
-    // who TYPES their answer instead of speaking would read as a silent
-    // room — endpointed ~5s after their last SPOKEN word, or bowed out at
-    // 75s with a spoken line over their mid-typing. A keystroke holds the
-    // floor as surely as a spoken word ('input' fires for real keystrokes
-    // only — the recorder never writes the box).
-    r2.onType = () => { r2.quietMs = 0; };
-    input.addEventListener('input', r2.onType);
     node.onaudioprocess = e => {
       r2.frames++;
       const d = e.inputBuffer.getChannelData(0);
@@ -931,17 +826,13 @@
     recSrcNode.connect(node); node.connect(recCtx.destination);
     recording = r2;
     mic.classList.add('rec');
-    // Same gesture grammar as demo_live's recorder: a tap on a LIVE
-    // recorder SENDS (mic.onclick → hearFinish) in BOTH window kinds —
-    // '◉ LISTENING' alone belongs to the SR path, where the same pulse
-    // means tap-to-CANCEL. State the tap's real meaning, auto windows
-    // included, and a pause-to-think (or a tap-to-shut-it-up) never mails
+    // Same gesture grammar as demo_live's recorder: a manual capture's
+    // second tap SENDS (mic.onclick → hearFinish), so the button must say
+    // so — '◉ LISTENING' belongs to the SR path, where a second tap
+    // CANCELS. State the tap's meaning, and a pause-to-think never mails
     // a half-answer by surprise.
-    mic.textContent = auto ? '◉ TAP TO SEND' : '◉ TAP WHEN DONE';
-    // A non-empty box at capture open is a visitor mid-thought: their words
-    // stay VISIBLE — never held hostage in the draft snapshot until some
-    // bow-out restores them. Only an empty box gets the clean slate.
-    if (!input.value.trim()) input.value = '';
+    mic.textContent = auto ? '◉ LISTENING' : '◉ TAP WHEN DONE';
+    input.value = '';
     input.placeholder = auto ? 'Go on — she’s listening…'
       : 'Listening — speak, then pause or tap the mic to finish…';
   }
@@ -950,7 +841,6 @@
     const r = recording;
     recording = null;
     clearTimeout(r.timer); clearTimeout(r.pulse);
-    input.removeEventListener('input', r.onType);  // the capture's clock dies with it
     try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
     // RELEASE the whole session between listens. A held stream flips iOS
@@ -964,9 +854,7 @@
     if (!r.frames) {
       micBusy = false;
       jstate = 'idle';  // the ear is closed — never leave the reactor pulsing 'listening'
-      // Fresh typing beats the stale snapshot (the house rule, every
-      // restore path): restore only into an empty box.
-      if (!input.value.trim()) input.value = r.draft;
+      input.value = r.draft;
       // Not one frame arrived — dead pipe, not a quiet visitor. Say so.
       input.placeholder = 'Her ears cut out \u2014 tap the mic and she\u2019ll listen again';
       return;
@@ -975,17 +863,12 @@
     if (!r.spoke || total < r.rate * 0.4) {  // silence — wait for them; their typed draft survives
       micBusy = false;
       jstate = 'idle';  // silent bow-out: no ear is open now
-      // Fresh typing beats the stale snapshot: restore only into an empty box.
-      if (!input.value.trim()) input.value = r.draft;
+      input.value = r.draft;
       // SR parity: 75 quiet seconds must not end in a silent dead mic —
       // iPhone has NO other voice path, so leave the same soft door open.
       // A deliberate finish tap stays silent (they chose to close it), and
       // the overflow beat belongs to the finale poller, not a soft door.
-      // Typed text present = they chose the keyboard: the soft door stays
-      // SILENT (speaking over a composition is the breach; the box already
-      // survived above). An empty box keeps the spoken door.
-      if (!manual && awaiting && voiceMode && step < steps.length
-          && !input.value.trim()) {
+      if (!manual && awaiting && voiceMode && step < steps.length) {
         clearTimeout(nudgeTimer); nudged = step;
         say('No hurry at all — tap the mic when you’re ready, or simply type.', null, 'idle');
       }
@@ -993,60 +876,33 @@
     }
     input.placeholder = 'On the wires…';
     const gen = ansGen;  // if an answer lands another way mid-flight, this transcript is stale
-    // micBusy deliberately holds through this round-trip (above) — so a
-    // stalled socket must never hold it for the browser's socket lifetime:
-    // taps dead at listenOnce's gate, autoListen closed, nudges deferring
-    // themselves to death, 'On the wires…' forever — on the ONE platform
-    // whose only voice path is this recorder. demo_live's /speak watchdog,
-    // dual-path: AbortSignal.timeout where it exists, a hand-rolled
-    // controller where it doesn't. The catch below already restores the
-    // draft and reopens the hands-free chain — the abort is all.
-    const ctrl = AbortSignal.timeout ? null : new AbortController();
-    const ctrlTimer = ctrl ? setTimeout(() => ctrl.abort(), 15000) : 0;
     try {
       const resp = await fetch(API + '/hear', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ audio: b64FromBuf(wavFrom(r.chunks, r.rate)) }),
-        signal: ctrl ? ctrl.signal : AbortSignal.timeout(15000),
       });
       const d = await resp.json().catch(() => null);
       if (gen !== ansGen) return;  // superseded — a newer answer owns micBusy/input now; drop this transcript
       input.placeholder = idleHint;
       micBusy = false;
-      if (d && d.heard) {
-        // Fresh typing beats the stale snapshot — and the TRANSCRIPT is a
-        // snapshot too, frozen when the capture closed: a visitor who typed
-        // during the round trip owns the box, and an unconditional overwrite
-        // here would stomp their half-typed words AND auto-submit them. Only
-        // an empty box, or one still holding the pre-capture draft untouched,
-        // takes the transcript and the auto-answer; typed words keep the
-        // floor, and ANSWER stays theirs to press.
-        if (!input.value.trim() || input.value === r.draft) {
-          input.value = d.heard; answer(d.heard); return;
-        }
-        jstate = 'idle';  // the ear is closed and the floor is theirs — no pulsing 'listening'
-        return;
-      }
+      if (d && d.heard) { input.value = d.heard; answer(d.heard); return; }
       // Nothing heard: say so in her register, and their typed half-answer
-      // from before the mic tap survives — draft-survival is the house
-      // rule, and fresh typing beats the stale snapshot.
-      if (!input.value.trim()) input.value = r.draft;
+      // from before the mic tap survives — draft-survival is the house rule.
+      input.value = r.draft;
       input.placeholder = 'Didn’t catch that — tap the mic, or type';
       say('I didn’t catch that — do try again, a touch closer to the microphone.',
         () => { if (voiceMode) autoListen(); });  // the spoken 'try again' must reopen the ear itself
     } catch {
       if (gen !== ansGen) return;  // superseded mid-flight — stand down silently
       // The uplink failed AFTER they spoke a full answer — silence here
-      // reads as being ignored. Acknowledge the loss; the draft survives
-      // (only into an empty box — fresh typing beats the stale snapshot).
+      // reads as being ignored. Acknowledge the loss; the draft survives.
       micBusy = false;
-      if (!input.value.trim()) input.value = r.draft;
+      input.value = r.draft;
       input.placeholder = 'The uplink hiccuped — tap the mic, or type';
       say('The uplink hiccuped. Once more, if you please.',
         () => { if (voiceMode) autoListen(); });  // keep the hands-free chain alive after a failure
     }
-    finally { if (ctrlTimer) clearTimeout(ctrlTimer); }
   }
   function hearDiscard() {
     // The visitor answered another way mid-capture: release the ear, clear
@@ -1057,7 +913,6 @@
     recording = null;
     micBusy = false;
     clearTimeout(r.timer); clearTimeout(r.pulse);
-    input.removeEventListener('input', r.onType);  // the capture's clock dies with it
     try { recSrcNode.disconnect(r.node); } catch {}
     try { r.node.disconnect(); } catch {}
     releaseEars();
