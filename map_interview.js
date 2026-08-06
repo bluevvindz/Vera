@@ -71,20 +71,28 @@
   let growSession = false;
   let sayGen = 0;      // bumps on every say() and on interrupts — stale finishes die
   let sayTimer = 0;
-  function say(text, onDone) {
+  let sayFinish = null;  // the playing line's pending completion — barge-in flushes it, never orphans it
+  function say(text, onDone, endState) {
     sayGen++; clearTimeout(sayTimer);
     const gen = sayGen;
     qEl.textContent = text;
     qEl.style.display = 'block';
-    jstate = 'speaking';
+    // A live ear: render TEXT ONLY — her audio would land in the open
+    // capture and come back as "their" words (iPhone recorder especially).
+    const earLive = micBusy || !!recording;
+    if (!earLive) jstate = 'speaking';
     let done = false;
-    const finish = () => {
-      if (done || gen !== sayGen) return;
+    const finish = (force) => {
+      if (done || (!force && gen !== sayGen)) return;
       done = true;
-      jstate = 'listening';
+      if (sayFinish === finish) sayFinish = null;
+      // Terminal lines land on 'idle' — after them no ear is open, and the
+      // reactor must not pulse 'listening' over a closed mic.
+      jstate = endState || 'listening';
       if (onDone) onDone();
     };
-    if (!soundOn) { sayTimer = setTimeout(finish, 900 + text.length * 35); return; }  // text-only pace
+    sayFinish = finish;
+    if (!soundOn || earLive) { sayTimer = setTimeout(finish, 900 + text.length * 35); return; }  // text-only pace
     // Watchdog: audio/speech can be blocked silently — always advance.
     sayTimer = setTimeout(finish, Math.max(4000, text.length * 80));
 
@@ -138,14 +146,29 @@
     } catch { finish(); }
   }
   function bargeIn() {
-    // An answer — or a deliberate mic engagement — mid-line means "let me
-    // speak": she yields the floor, and her interrupted line can't finish
-    // late (sayGen) or fire a stale watchdog (sayTimer). Without this, an
-    // eager tap opens an ear UNDER her live MP3: iPhone records her own
-    // question through the speaker; Android ducks her mid-word.
+    // An ANSWER mid-line: she yields the floor, and the interrupted line's
+    // continuation is moot — answer() itself drives the flow onward with
+    // say(ack, nextQuestion). Without the yield, an eager answer leaves an
+    // ear open UNDER her live MP3: iPhone records her own question through
+    // the speaker; Android ducks her mid-word.
     if (currentAudio) { try { currentAudio.pause(); } catch {} }
     try { speechSynthesis.cancel(); } catch {}
     sayGen++; clearTimeout(sayTimer);
+    sayFinish = null;
+  }
+  function bargeInFlush() {
+    // A deliberate MIC ENGAGEMENT mid-line: she yields, but the interrupted
+    // line's continuation MUST still run — orphaning say(ack, nextQuestion)
+    // would freeze the interview behind a closed gate (awaiting never flips,
+    // every later answer silently discarded). Mirror of demo_live's
+    // stopAudio/currentFinish. Callers claim micBusy BEFORE flushing, so a
+    // flushed autoListen can never double-open the ear, and say() renders
+    // text-only over the live one.
+    if (currentAudio) { try { currentAudio.pause(); } catch {} }
+    try { speechSynthesis.cancel(); } catch {}
+    sayGen++; clearTimeout(sayTimer);
+    const f = sayFinish; sayFinish = null;
+    if (f) f(true);  // force past the gen gate — the one sanctioned late finish
   }
 
   /* ---- phones: the map and the conversation ARE the page — the analysis
@@ -278,7 +301,44 @@
     if (step === nudged || step < 0 || step >= steps.length) return;
     nudgeTimer = setTimeout(() => {
       if (!awaiting || step === nudged) return;
-      if (micBusy || recording) { armNudge(); return; }  // a live ear — never talk over it
+      if (micBusy || recording) {
+        // Voice mode keeps an ear open for the whole awaiting window — but a
+        // still-SILENT ear must not mute the hand-holds (Siri re-prompts in
+        // seconds; 75 mute seconds at a pulsing mic reads as a hang). Close
+        // the empty ear, speak the nudge, and let its onDone reopen it. An
+        // ear with speech in it — or an answer already on the wires — defers
+        // exactly as before.
+        const silentSR = () => srLive() && !input.value.trim();
+        const silentRec = !!recording && !recording.spoke && !recording.draft.trim();
+        const deliver = () => {
+          nudged = step;
+          const nline = (steps[step] && steps[step].nudge) || NUDGES[step];
+          const speakNudge = tries => {
+            if (!awaiting) return;               // an answer landed in the gap
+            if (micBusy || recording) {          // the retiring ear hasn't settled yet
+              if (tries > 0) setTimeout(() => speakNudge(tries - 1), 250);
+              return;
+            }
+            say(nline, () => { if (voiceMode) autoListen(); });
+          };
+          setTimeout(() => speakNudge(8), 250);
+        };
+        if (silentSR()) {
+          // SR interims lag the first word by ~200-500ms: a visitor who
+          // began answering a breath ago still reads as silent RIGHT NOW.
+          // One more beat, one re-check — only a STILL-empty ear is closed;
+          // an ear with fresh words in it gets left alone to finish.
+          setTimeout(() => {
+            if (!awaiting || step === nudged) return;
+            if (!silentSR()) { armNudge(); return; }  // words arrived — they're answering
+            abortSR();
+            deliver();
+          }, 400);
+          return;
+        }
+        if (silentRec) { hearDiscard(); deliver(); return; }
+        armNudge(); return;  // an ear with speech in it — or an answer on the wires — defers
+      }
       if (input.value.trim()) return;   // they're mid-thought — stay quiet
       nudged = step;
       const nline = (steps[step] && steps[step].nudge) || NUDGES[step];
@@ -288,13 +348,47 @@
 
   function nextQuestion() {
     step++;
-    if (step >= steps.length) return finale();
+    if (step >= steps.length) {
+      if (micBusy || recording) {
+        // A mic engagement during the LAST ack force-ran its finish
+        // (bargeInFlush) and landed us here with an ear still live — the
+        // visitor is mid-words. NEVER run the finale under a live ear: it
+        // would hide the bar mid-capture and the landing speech would die
+        // unheard at answer()'s gate. Keep the gate open — answer() threads
+        // overflow words in as an addendum — and poll the finale in only
+        // once every ear (and every line on the speakers) has settled.
+        // Captures legally run ~95s, and retry-invites can chain: patient.
+        awaiting = true;
+        const tryFinale = tries => {
+          if (!awaiting) return;  // an answer landed — its ack chain owns the flow now
+          if (micBusy || recording || sayFinish) {
+            if (tries > 0) setTimeout(() => tryFinale(tries - 1), 250);
+            return;
+          }
+          awaiting = false;
+          finale();
+        };
+        setTimeout(() => tryFinale(1200), 250);
+        return;
+      }
+      return finale();
+    }
     // Accept answers from the moment the question STARTS — people talk over
     // her, and discarding their words reads as "she can't hear me".
     setTimeout(() => {
       awaiting = true;
       say(steps[step].q, () => { if (voiceMode) autoListen(); armNudge(); });
     }, 650);
+  }
+
+  function wakeBack(tries) {
+    // Finale hand-back: never resume the hotword over a still-open ear —
+    // but never skip-once-and-die either (a single skipped resume leaves
+    // suppressed set and the hotword dead for the rest of the page). Poll
+    // until the ear settles; a capture can legally run ~95s.
+    if (!wake) return;
+    if (micBusy || recording) { if (tries > 0) setTimeout(() => wakeBack(tries - 1), 400); return; }
+    wake.resume();
   }
 
   function finale() {
@@ -304,7 +398,8 @@
       window.MAP_API.focus('you');
       saveBrain();
       say('Threaded in. Your map remembers — and so do I.', () => {
-        jstate = 'idle'; if (wake) wake.resume();
+        jstate = 'idle';
+        wakeBack(300);  // never over a still-open ear — and never skipped for good
         if (!document.getElementById('show-link')) {
           const s = document.createElement('a');
           s.id = 'show-link';
@@ -320,7 +415,8 @@
     window.MAP_API.focus('you');
     saveBrain();
     say('And there it is — your second brain, mapped as we spoke. It lives in this browser — and only this browser — and it will remember you when you return. The production system grows one of these from every conversation… and never forgets.',
-      () => { jstate = 'idle'; if (wake) wake.resume();
+      () => { jstate = 'idle';
+        wakeBack(300);  // never over a still-open ear — and never skipped for good
         window.VERA_INSTALL && window.VERA_INSTALL.offer();  // Seed planted = the moment to keep her
         const s = document.createElement('a');            // …and the show is next, one tap away
         s.id = 'show-link';
@@ -340,7 +436,26 @@
 
   function answer(text) {
     text = (text || '').trim();
-    if (!text || !awaiting || step < 0 || step >= steps.length) return;
+    if (!text || !awaiting || step < 0) return;
+    if (step >= steps.length) {
+      // Overflow words: a mic engaged during the last ack — an explicit
+      // invitation — and the visitor used the door. Their speech must NEVER
+      // be discarded: thread it in as an addendum, ack it, and let the ack's
+      // onDone re-run nextQuestion, which lands on finale once the ears are
+      // quiet. Same ear-retirement rule as any answer.
+      awaiting = false;
+      clearTimeout(nudgeTimer);
+      if (abortSR) abortSR();
+      hearDiscard();
+      ansGen++;         // an in-flight /hear round trip is retired too
+      micBusy = false;
+      input.value = '';
+      bargeIn();
+      jstate = 'thinking';
+      freestyle(text);  // stars persist themselves as they land
+      say('In it goes — give me one breath to thread it.', nextQuestion);
+      return;
+    }
     awaiting = false;
     clearTimeout(nudgeTimer);
     // One rule: an answer by ANY modality retires every open ear first — a
@@ -481,6 +596,7 @@
   };
   let startSR = null;
   let abortSR = null;
+  let srLive = () => false;  // TRUE while the SR ear is live — the nudge needs to see a silent one
   if (SR) {
     let rec = null;
     let cancelled = false;
@@ -489,17 +605,18 @@
       cancelled = true;
       try { rec.abort(); } catch { try { rec.stop(); } catch {} }
     };
+    srLive = () => !!rec;
     startSR = (manual) => {
       if (rec) {  // second tap = cancel; their typed draft survives
         cancelled = true;
         try { rec.abort(); } catch { try { rec.stop(); } catch {} }
         return;
       }
-      if (manual) bargeIn();  // a mic tap mid-line means "let me speak" — she yields
-      jstate = 'listening';   // the reactor shows the ear, not her interrupted line
       voiceMode = true;
       cancelled = false;
-      micBusy = true;
+      micBusy = true;             // claim BEFORE the flush — a flushed autoListen must never double-open
+      if (manual) bargeInFlush(); // a mic tap mid-line means "let me speak" — she yields, the flow still advances
+      jstate = 'listening';       // the reactor shows the ear, not her interrupted line
       const draft = input.value;
       rec = new SR();
       rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
@@ -557,11 +674,14 @@
           // mic-off — they re-engage by tap or typing.
           if (cancelled) {
             clearTimeout(nudgeTimer); nudged = step;
-          } else if (awaiting) {
+          } else if (awaiting && step < steps.length) {
             // 75 quiet seconds must not end in a silent dead mic — leave a
-            // soft door open. (A deliberate cancel tap stays silent.)
+            // soft door open. (A deliberate cancel tap stays silent, and the
+            // overflow beat belongs to the finale poller, not a soft door.)
             clearTimeout(nudgeTimer); nudged = step;
-            say('No hurry at all — tap the mic when you’re ready, or simply type.');
+            // Terminal line: the mic is CLOSED now — land the reactor on
+            // 'idle', not a pulsing 'listening' that contradicts the words.
+            say('No hurry at all — tap the mic when you’re ready, or simply type.', null, 'idle');
           }
           return;
         }
@@ -651,9 +771,9 @@
   }
   async function listenOnce(auto) {
     if (recording) return;
-    if (!auto) { bargeIn(); jstate = 'listening'; }  // a mic tap mid-line means "let me speak" — she yields; the reactor shows the ear
-    micBusy = true;  // covers the getUserMedia await too — no nudge over a borrowing ear
+    micBusy = true;  // covers the getUserMedia await too — no nudge over a borrowing ear, and the claim precedes the flush
     voiceMode = true;
+    if (!auto) { bargeInFlush(); jstate = 'listening'; }  // a mic tap mid-line means "let me speak" — she yields, the flow still advances; the reactor shows the ear
     let ok = false;
     try { ok = await ensureEars(); } catch { ok = false; }  // a rejection must never strand micBusy
     if (!ok) {
@@ -705,11 +825,18 @@
     };
     recSrcNode.connect(node); node.connect(recCtx.destination);
     recording = r2;
-    mic.classList.add('rec'); mic.textContent = '◉ LISTENING';
+    mic.classList.add('rec');
+    // Same gesture grammar as demo_live's recorder: a manual capture's
+    // second tap SENDS (mic.onclick → hearFinish), so the button must say
+    // so — '◉ LISTENING' belongs to the SR path, where a second tap
+    // CANCELS. State the tap's meaning, and a pause-to-think never mails
+    // a half-answer by surprise.
+    mic.textContent = auto ? '◉ LISTENING' : '◉ TAP WHEN DONE';
     input.value = '';
-    input.placeholder = auto ? 'Go on — she’s listening…' : 'Listening — speak, then pause…';
+    input.placeholder = auto ? 'Go on — she’s listening…'
+      : 'Listening — speak, then pause or tap the mic to finish…';
   }
-  async function hearFinish() {
+  async function hearFinish(manual) {
     if (!recording) return;
     const r = recording;
     recording = null;
@@ -726,6 +853,7 @@
     // records her own ack as the next answer.
     if (!r.frames) {
       micBusy = false;
+      jstate = 'idle';  // the ear is closed — never leave the reactor pulsing 'listening'
       input.value = r.draft;
       // Not one frame arrived — dead pipe, not a quiet visitor. Say so.
       input.placeholder = 'Her ears cut out \u2014 tap the mic and she\u2019ll listen again';
@@ -734,7 +862,16 @@
     let total = 0; for (const c of r.chunks) total += c.length;
     if (!r.spoke || total < r.rate * 0.4) {  // silence — wait for them; their typed draft survives
       micBusy = false;
+      jstate = 'idle';  // silent bow-out: no ear is open now
       input.value = r.draft;
+      // SR parity: 75 quiet seconds must not end in a silent dead mic —
+      // iPhone has NO other voice path, so leave the same soft door open.
+      // A deliberate finish tap stays silent (they chose to close it), and
+      // the overflow beat belongs to the finale poller, not a soft door.
+      if (!manual && awaiting && voiceMode && step < steps.length) {
+        clearTimeout(nudgeTimer); nudged = step;
+        say('No hurry at all — tap the mic when you’re ready, or simply type.', null, 'idle');
+      }
       return;
     }
     input.placeholder = 'On the wires…';
@@ -792,7 +929,7 @@
   }
 
   if (startSR) mic.onclick = () => startSR(true);  // a tap is manual — never pass the Event
-  else if (canRecord) mic.onclick = () => (recording ? hearFinish() : listenOnce(false));
+  else if (canRecord) mic.onclick = () => (recording ? hearFinish(true) : listenOnce(false));  // a second tap is a deliberate finish
   else mic.style.display = 'none';
 
   // Early-access capture — shown once the Seed is planted. Degrades politely

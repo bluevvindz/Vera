@@ -44,6 +44,7 @@
       let pendingTimer = null;
       let fired = false;
       let duckPaused = false;  // set ONLY when the duck-guard itself pauses a live ear
+      let suppressed = false;  // a page-level pause (interview/capture) is in force — chip and arm() off the table
 
       function fire(transcript) {
         // One breath: "Vera, what's the weather" → onWake("what's the weather").
@@ -82,9 +83,18 @@
             }
           }
           if (pendingIdx !== null) {
+            const prev = pendingText;
             pendingText = '';
             for (let i = pendingIdx; i < e.results.length; i++)
               pendingText += (pendingText ? ' ' : '') + e.results[i][0].transcript;
+            // Sliding fuse — WE decide when they're done, not a shot clock:
+            // every new word re-arms the breath to end ~2.6s after the LAST
+            // thing heard, so a long command never fires mid-sentence.
+            // (isFinal below still fires immediately, same as ever.)
+            if (pendingText !== prev) {
+              clearTimeout(pendingTimer);
+              pendingTimer = setTimeout(() => fire(pendingText), 2600);
+            }
             if (e.results[e.results.length - 1].isFinal) fire(pendingText);
           }
         };
@@ -113,7 +123,10 @@
         if (rec) { try { rec.onresult = rec.onerror = rec.onend = null; rec.stop(); } catch {} rec = null; }
       }
       function arm() {
-        if (enabled) return;
+        // Never arm over a foreign ear: while a page-level pause is in force
+        // (interview, chat capture), a second recognizer would war with the
+        // live one — per platform law the two starters abort each other.
+        if (enabled || suppressed) return;
         enabled = true; paused = false;
         chip.textContent = '◉ Listening — say “Hey Vera”';
         chip.classList.add('armed');
@@ -165,15 +178,23 @@
         el.addEventListener('error', back);  // a media error fires neither 'ended' nor 'pause'
       };
       const ctl = {
-        pause: stop,
+        pause() {
+          // A deliberate page pause: take the chip OFF THE TABLE even when
+          // wake was never armed — an inviting click here would start a
+          // recognizer war over the page's own live ear.
+          suppressed = true;
+          stop();
+          chip.style.display = 'none';
+        },
         arm,  // entry gate arms listening without a chip click
         duck,                          // pre-play hook: duck BEFORE play() — zero ducked words
         duckAttach: attachDuckGuard,   // pages call this the moment VERA_AUDIO_EL is born
         resume() {
+          suppressed = false;
           duckPaused = false;  // an explicit resume supersedes any pending duck-return
           paused = false;
-          if (!enabled) return;
-          chip.style.display = '';  // wake hid it — always-on means it comes back
+          chip.style.display = '';  // wake (or a page pause) hid it — always-on means it comes back
+          if (!enabled) return;     // unarmed: the chip returns as the 'click to arm' affordance
           chip.textContent = '◉ Listening — say “Hey Vera”';
           chip.classList.add('armed');
           listen();
