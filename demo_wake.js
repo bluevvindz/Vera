@@ -45,6 +45,7 @@
       let fired = false;
       let duckPaused = false;  // set ONLY when the duck-guard itself pauses a live ear
       let suppressed = false;  // a page-level pause (interview/capture) is in force — chip and arm() off the table
+      let speakingChip = false;  // the '◈ Speaking' chip is up for a page-level speak-pause — a following duck() must not blink it out
 
       function fire(transcript) {
         // One breath: "Vera, what's the weather" → onWake("what's the weather").
@@ -115,6 +116,7 @@
       }
       function stop() {
         duckPaused = false;  // any deliberate pause/stop revokes the duck-guard's claim
+        speakingChip = false;  // …and the speak-pause chip's — callers that still own it re-raise it after
         paused = true;
         fired = true;  // disarm the in-flight breath — no late fire from timers or flushed results
         if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
@@ -128,6 +130,22 @@
         // live one — per platform law the two starters abort each other.
         if (enabled || suppressed) return;
         enabled = true; paused = false;
+        // …and never arm UNDER a live line: per platform law Android ducks
+        // all media during recognition, so an ear started mid-play drops her
+        // voice near-silent mid-word — and back() would never resume-correct,
+        // because duckPaused was never set (the guard didn't duck this ear).
+        // Take the guard's own parking path instead: claim the pause, let the
+        // chip say WHY, and back() starts the ear on 'ended'/'pause' as ever.
+        // (el.error mirrors back()'s gate: a mid-play media error stops sound
+        // with paused still false, and no further event would ever come.)
+        const el = window.VERA_AUDIO_EL;
+        if (el && !el.paused && !el.ended && !el.error) {
+          duckPaused = true;
+          chip.style.display = '';
+          chip.textContent = '◈ Speaking — one moment';
+          chip.classList.remove('armed');
+          return;
+        }
         chip.textContent = '◉ Listening — say “Hey Vera”';
         chip.classList.add('armed');
         listen();
@@ -148,9 +166,11 @@
         // Live ear right now, or a pause the guard already owns (a pre-play
         // duck() followed by the 'play' event must not drop its own claim).
         const wasLive = (enabled && !paused) || duckPaused;
-        stop();               // clears duckPaused
+        const keepChip = speakingChip;  // a speak-pause's chip must survive the duck — read BEFORE stop() clears it
+        stop();               // clears duckPaused (and speakingChip)
         duckPaused = wasLive; // reclaim only when the guard ducked a live ear
-        if (wasLive) {
+        speakingChip = keepChip;  // the speak-pause still owns the story — its own resume clears it
+        if (wasLive || keepChip) {
           // No chip flicker — but the ear IS off while she speaks, so the
           // chip must say so instead of advertising a deaf hotword. The
           // guard's back()/resume path restores the armed text.
@@ -178,13 +198,24 @@
         el.addEventListener('error', back);  // a media error fires neither 'ended' nor 'pause'
       };
       const ctl = {
-        pause() {
+        pause(reason) {
           // A deliberate page pause: take the chip OFF THE TABLE even when
           // wake was never armed — an inviting click here would start a
-          // recognizer war over the page's own live ear.
+          // recognizer war over the page's own live ear. reason 'speaking'
+          // = her voice is on the speakers (TTS tier, risky line): the ear
+          // is off either way, but an ARMED chip must SAY why — the same
+          // '◈ Speaking' state a ducked MP3 line shows — never blink out
+          // and advertise ambiguity about a dead hotword.
           suppressed = true;
           stop();
-          chip.style.display = 'none';
+          speakingChip = reason === 'speaking' && enabled;
+          if (speakingChip) {
+            chip.style.display = '';
+            chip.textContent = '◈ Speaking — one moment';
+            chip.classList.remove('armed');
+          } else {
+            chip.style.display = 'none';
+          }
         },
         arm,  // entry gate arms listening without a chip click
         duck,                          // pre-play hook: duck BEFORE play() — zero ducked words
@@ -192,6 +223,7 @@
         resume() {
           suppressed = false;
           duckPaused = false;  // an explicit resume supersedes any pending duck-return
+          speakingChip = false;  // the line is over — the chip goes back to its armed truth below
           paused = false;
           chip.style.display = '';  // wake (or a page pause) hid it — always-on means it comes back
           if (!enabled) return;     // unarmed: the chip returns as the 'click to arm' affordance
