@@ -1443,6 +1443,14 @@
   // demo never depends on anyone discovering the Brain Map link.
   if (window.VERA_ENTRY) window.VERA_ENTRY.onDone(voice => {
     if (voice && !soundOn) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }
+    // "One click = sound on + wake armed" — ARMED HERE, before the entry
+    // branches below return. The arm used to sit after them, so every
+    // actual first visit (fresh stranger, returning Seed) skipped it and
+    // the hotword read as a tap-to-talk button. Arming under the reel is
+    // safe: arm() parks the ear while a line plays and back() opens it
+    // between lines; a chip tap during the walk is a summon (onWake sets
+    // walkCancelled), never a first-arm.
+    if (voice && wake) wake.arm();
     if (!window.VERA_SEED && window.VERA_ENTRY.fresh) {
       takeover();  // the reel yields — introductions come first
       const go = () => walkTo('map.html?demo=1&go=1');
@@ -1541,7 +1549,7 @@
       return;
     }
     if (!voice) return;
-    if (wake) wake.arm();
+    // (arm moved to the top of this handler — every voice branch gets it)
     if (window.VERA_ENTRY.fresh) speakAloud("Welcome. I'm Vera — say my name any time you need me.");
   });
 })();
