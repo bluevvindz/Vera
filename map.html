@@ -484,14 +484,14 @@ addEventListener('touchend', e => {
 
 /* ---------------------------------------------------------- mini reactor */
 const MMODES = {
-  offline:   { c: [214,  84,  98], s: 0.20 },
+  offline:   { c: [118, 132, 148], s: 0.20 },
   idle:      { c: [ 47, 148, 187], s: 0.38 },
   listening: { c: [ 63, 217, 255], s: 1.00 },
-  thinking:  { c: [255, 194,  85], s: 2.60 },
+  thinking:  { c: [124, 150, 255], s: 2.60 },
   speaking:  { c: [189, 239, 255], s: 1.15 },
 };
 let jstate = 'offline';
-const mcur = { c: [214, 84, 98], s: 0.2 };
+const mcur = { c: [118, 132, 148], s: 0.2 };
 let mlevel = 0, mtarget = 0, mphase = 0, mlast = 0;
 const mini = document.getElementById('mini-ring');
 const mctx = mini.getContext('2d');

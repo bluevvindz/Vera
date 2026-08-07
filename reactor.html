@@ -203,15 +203,15 @@
 /* ---------------------------------------------------------------- modes */
 /* Mirrors the states sent by hud.py: idle | listening | thinking | speaking */
 const MODES = {
-  offline:   { color: [214,  84,  98], text: 'LINK OFFLINE', speed: 0.20, glow: 0.28 },
+  offline:   { color: [118, 132, 148], text: 'LINK OFFLINE', speed: 0.20, glow: 0.28 },
   idle:      { color: [ 47, 148, 187], text: 'STANDING BY',  speed: 0.38, glow: 0.50 },
   listening: { color: [ 63, 217, 255], text: 'LISTENING',    speed: 1.00, glow: 0.90 },
-  thinking:  { color: [255, 194,  85], text: 'PROCESSING',   speed: 2.60, glow: 0.80 },
+  thinking:  { color: [124, 150, 255], text: 'PROCESSING',   speed: 2.60, glow: 0.80 },
   speaking:  { color: [189, 239, 255], text: 'SPEAKING',     speed: 1.15, glow: 1.00 },
 };
 
 let mode = 'offline';
-const cur = { color: [214, 84, 98], speed: 0.2, glow: 0.28 };  // eased toward MODES[mode]
+const cur = { color: [118, 132, 148], speed: 0.2, glow: 0.28 };  // eased toward MODES[mode]
 let level = 0, targetLevel = 0;
 const levelHistory = new Array(56).fill(0);
 
@@ -535,13 +535,13 @@ function runDemo() {
     [1200, () => { setMode('idle'); document.getElementById('cards').replaceChildren(); window.VERA_HUB && window.VERA_HUB.reset(); }],
     [1800, () => { setMode('listening'); targetLevel = 0.5; }],
     [1400, () => { addLine('user', 'Hey Vera, what’s on the docket today?'); setMode('thinking'); }],
-    [1500, async () => { await say('Three items: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.'); usage(2100, 340); }],
+    [500, async () => { await say('Three items: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.'); usage(2100, 340); }],
     [900, () => { setMode('listening'); targetLevel = 0.45; }],
     [1600, () => { addLine('user', 'Research CRM options for a small consultancy.'); setMode('thinking'); }],
-    [1800, async () => { const p = say('On the wires now — the short answer: three contenders, one clear value pick. Card’s on your display.'); card('CRM SCAN — SMALL CONSULTANCY', ['Option A — free tier, 2-seat cap, best API', 'Option B — $12/mo, native email sync', 'Option C — $29/mo, overkill until 50+ clients', 'Value pick: Option B — migration path to C is clean']); usage(8400, 620); await p; }],
+    [600, async () => { const p = say('On the wires now — the short answer: three contenders, one clear value pick. Card’s on your display.'); card('CRM SCAN — SMALL CONSULTANCY', ['Option A — free tier, 2-seat cap, best API', 'Option B — $12/mo, native email sync', 'Option C — $29/mo, overkill until 50+ clients', 'Value pick: Option B — migration path to C is clean']); usage(8400, 620); await p; }],
     [1200, () => { setMode('listening'); targetLevel = 0.4; }],
     [1800, () => { addLine('user', 'Show me what you can really do.'); setMode('thinking'); }],
-    [1500, async () => { await say('Now — allow me to show off. I shall build you a live operations hub from nothing.'); usage(1700, 260); }],
+    [500, async () => { await say('Now — allow me to show off. I shall build you a live operations hub from nothing.'); usage(1700, 260); }],
     [700, async () => { document.getElementById('cards').replaceChildren(); if (window.VERA_HUB) { window.VERA_HUB.show('log'); window.VERA_HUB.show('markets'); } await say('First: a market feed. Live numbers, straight off the wire.'); usage(1100, 180); }],
     [900, async () => { window.VERA_HUB && window.VERA_HUB.show('scores'); await say('Now the scoreboard — today’s games, as they happen.'); usage(1300, 170); }],
     [900, async () => { window.VERA_HUB && window.VERA_HUB.show('vitals'); await say('A vitals monitor, because one must look after one’s principal.'); usage(900, 150); }],
