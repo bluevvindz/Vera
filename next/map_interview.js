@@ -905,7 +905,10 @@
       frames: 0,
       draft: input.value,  // typed half-answers survive a silent/dead capture
       settleMs: 350,  // her own voice tail is still in the room — not an answer
-      timer: setTimeout(hearFinish, 95000),
+      // 75s, not 95: the worker caps requests at 2.5MB and 95s of WAV is
+      // ~3.0MB — a wall the server always rejects is worse than one that
+      // transcribes (twin of demo_live's recorder wall).
+      timer: setTimeout(hearFinish, 75000),
       // Dead-pipe watchdog: a capture that never produces a frame ends
       // fast and says so, instead of impersonating a quiet room.
       pulse: setTimeout(() => { if (recording === r2 && !r2.frames) hearFinish(); }, 1500) };

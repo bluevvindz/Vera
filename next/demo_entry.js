@@ -33,10 +33,43 @@
     cbs.splice(0).forEach(cb => { try { cb(voice); } catch {} });
   }
 
-  // Already chose this session (navigating between pages): no second gate.
+  // iOS WebKit (ALL iPhone browsers, Chrome included) only lets audio play
+  // from an element created inside a tap. Bless ONE element and every future
+  // line — reel, replies, acks — speaks through it. Hoisted out of close()
+  // because the gate-skip fast path below NEVER runs close(): revisit pages
+  // had no blessing at all, so playB64's el.play() rejected into a bare
+  // finish() and every reply died mute in under a second — which read as
+  // "she can't hear me" when she'd heard perfectly and answered silently.
+  function bless() {
+    try {
+      let el = window.VERA_AUDIO_EL;
+      if (!el) {
+        el = new Audio();
+        el.playsInline = true;
+        el.setAttribute('playsinline', '');
+        window.VERA_AUDIO_EL = el;
+      }
+      if (el.paused) {  // never yank a line that is audibly playing
+        // iOS IGNORES the volume property — muted is the only real gag.
+        // Without it, iPhones speak the blessing file ("Yes?") out loud.
+        el.muted = true;
+        el.volume = 0;
+        el.src = 'voice/wake.mp3';
+        el.play().then(() => { el.pause(); el.muted = false; el.volume = 1; el.currentTime = 0; })
+          .catch(() => { el.muted = false; el.volume = 1; });
+      }
+    } catch { /* audio stays best-effort */ }
+  }
+
+  // Already chose this session (navigating between pages): no second gate —
+  // but no gate tap either, so borrow the FIRST real tap for the blessing.
   let prior = null;
   try { prior = sessionStorage.getItem('vera_entry'); } catch {}
-  if (prior) { finish(prior === 'voice', false); return; }
+  if (prior) {
+    document.addEventListener('click', bless, { once: true, capture: true });
+    finish(prior === 'voice', false);
+    return;
+  }
 
   const css = document.createElement('style');
   css.textContent = `
@@ -103,23 +136,9 @@
   }
 
   function close(voice) {
-    // iOS WebKit (ALL iPhone browsers, Chrome included) only lets audio play
-    // from an element created inside a tap. Bless ONE element now, muted, and
-    // every future line — reel, replies, acks — speaks through it.
+    bless();  // the gate tap is the classic blessing site (hoisted above —
+              // the gate-skip fast path needs the same rite)
     try {
-      if (!window.VERA_AUDIO_EL) {
-        const el = new Audio();
-        el.playsInline = true;
-        el.setAttribute('playsinline', '');
-        // iOS IGNORES the volume property — muted is the only real gag. Without
-        // it, iPhones speak the blessing file ("Yes?") out loud at the gate.
-        el.muted = true;
-        el.volume = 0;
-        el.src = 'voice/wake.mp3';
-        el.play().then(() => { el.pause(); el.muted = false; el.volume = 1; el.currentTime = 0; })
-          .catch(() => { el.muted = false; el.volume = 1; });
-        window.VERA_AUDIO_EL = el;
-      }
       if (voice && 'speechSynthesis' in window) {
         const u = new SpeechSynthesisUtterance(' ');
         u.volume = 0;

@@ -47,13 +47,19 @@
         : /Android/.test(navigator.userAgent) ? 'Android' : 'desktop/other');
       line('SpeechRecog', SR ? 'available' : 'ABSENT (recorder is the only path)');
       line('getUserMedia', (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'available' : 'ABSENT');
-      line('server ears', typeof earsServer !== 'undefined' && earsServer ? 'on (/hear)' : 'off (browser tier)');
+      line('server ears', typeof earsServer !== 'undefined' && earsServer ? 'on (server STT)' : 'off (browser tier)');
       line('reactor mode', statusEl ? statusEl.textContent : '?');
       line('busy (floor)', String(busy) + (busy ? '  <-- WEDGED? mic is gated while true' : ''));
       line('replyPlaying', String(replyPlaying));
       line('earOpen', String(earOpen));
       line('recording', String(!!recording));
       line('audio ctx', recCtx ? recCtx.state : 'none');
+      // Settles the iOS sample-rate hypothesis from the phone itself,
+      // before anyone writes code for it.
+      line('track rate', recStream
+        ? String(((recStream.getAudioTracks()[0].getSettings() || {}).sampleRate) || '?')
+          + ' vs ctx ' + (recCtx ? recCtx.sampleRate : '?')
+        : 'no stream');
       line('sound', soundOn ? 'on' : 'muted');
       line('API', API ? API.replace(/^https?:\/\//, '') : 'NOT SET');
     } catch (e) { rows.push('state read failed: ' + e.message); }
@@ -342,7 +348,10 @@
         // (mirror speakAloud; risky lines already hold one from above).
         orphanDuck = true;
         if (!risky && wake) myToken = ++wakeToken;
-        finish();
+        // Mirror speakAloud's catch: fall back to browser TTS, never a bare
+        // finish — a blocked element was killing every reply MUTE in under
+        // a second, which read as "she can't hear me" when she'd answered.
+        browserSpeak(text, finish);
       });
     } catch { orphanDuck = true; if (!risky && wake) myToken = ++wakeToken; finish(); }
   }
@@ -837,6 +846,10 @@
     const tc = document.getElementById('talk-chip');
     if (tc) tc.remove();
     takeover();
+    // A deliberate mic tap wants a spoken answer — the same contract SEND
+    // already honors. (!auto: a machine-opened window claims no gesture;
+    // userMuted stays sovereign — only the SOUND tap clears an explicit mute.)
+    if (!auto && !soundOn && !userMuted) { soundOn = true; soundBtn.textContent = '🔊 SOUND'; }
     if (wake) { wakeToken++; wake.pause(); }
     earBorrow = true;  // the grant window: send()/glance() retire this claim via retireBorrow
     let earsOk = false;
@@ -875,8 +888,11 @@
       settleMs: 350,  // her own voice tail is still in the room — not an answer
       // Safety net ONLY — endpointing belongs to the RMS pause caps below
       // (auto) or the finish tap (manual). A wall clock must never cut a
-      // visitor off mid-thought; the interview recorder proved 95s is fine.
-      timer: setTimeout(recordFinish, 95000),
+      // visitor off mid-thought — but it must also fit the worker's 2.5MB
+      // request cap: 95s of 16-bit 16kHz WAV is ~3.0MB (guaranteed 413);
+      // 75s is ~2.4MB and lands. A wall the server always rejects is worse
+      // than a shorter wall that transcribes.
+      timer: setTimeout(recordFinish, 75000),
       // Dead-pipe watchdog: if no frame arrives at all, end the capture
       // fast and say so — a dead processor must never impersonate a quiet
       // room for ninety-five silent seconds.
@@ -959,6 +975,9 @@
       // Their typed draft survives a silent bow-out — and fresh typing
       // beats the stale snapshot: restore only into an empty box.
       if (!input.value.trim()) input.value = r.draft;
+      // Say why the ear closed — a blank idle after 12 quiet seconds reads
+      // as "she ignored me" on the ONE platform with no console.
+      input.placeholder = 'Didn’t catch that — tap the mic and try again';
       setMode('idle');
       if (wake) wake.resume();  // silence: the exchange is over, her name resumes duty
       return;
@@ -1028,8 +1047,14 @@
     // where their speech produced no sent turn.
     if (d && d.error === 'silence') {
       if (!input.value.trim()) input.value = draft || '';  // fresh typing beats the stale snapshot — restore only into an empty box
-      addLine('jarvis', 'I didn’t catch that — do try again, a touch closer to the microphone.');
-      resume(); return;
+      const line = 'I didn’t catch that — do try again, a touch closer to the microphone.';
+      addLine('jarvis', line);
+      // The one branch every deaf-pipe failure converges on — SPOKEN, like
+      // its siblings below: a text-only line on a phone in a pocket is the
+      // same silence the visitor already got.
+      if (soundOn) { replyPlaying = true; setMode('speaking'); speakAloud(line, resume); }
+      else resume();
+      return;
     }
     // Error lines honor the mute like every sibling (the happy path, the
     // glance, the silence path above): userMuted's contract says only the
@@ -1040,7 +1065,9 @@
       if (!input.value.trim()) input.value = draft || '';  // fresh typing beats the stale snapshot — restore only into an empty box
       const line = 'You have rather exhausted my public allowance for the moment — do return later, or contact the management for the full experience.';
       addLine('jarvis', line);
-      if (soundOn) { replyPlaying = true; speakAloud(line, resume); }
+      // Error lines flip to 'speaking' like the happy path does — without it
+      // every timed-out turn held amber PROCESSING through its whole spoken line.
+      if (soundOn) { replyPlaying = true; setMode('speaking'); speakAloud(line, resume); }
       else resume();
       return;
     }
@@ -1048,7 +1075,8 @@
       if (!input.value.trim()) input.value = draft || '';  // fresh typing beats the stale snapshot — restore only into an empty box
       const line = 'The uplink hiccuped. Once more, if you please.';
       addLine('jarvis', line);
-      if (soundOn) { replyPlaying = true; speakAloud(line, resume); }
+      // Same rule as above: her recovery line is SPEAKING, not PROCESSING.
+      if (soundOn) { replyPlaying = true; setMode('speaking'); speakAloud(line, resume); }
       else resume();
       return;
     }
@@ -1167,6 +1195,7 @@
         ? 'My eyes have had rather a full day — do show me again tomorrow.'
         : 'I couldn’t quite make that out. Once more, if you please.';
       addLine('jarvis', line);
+      setMode('speaking');  // error lines speak like the happy path at :1181 does
       replyPlaying = true;
       if (soundOn) speakReply(line, resume); else resume();
       return;
