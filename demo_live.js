@@ -652,7 +652,12 @@
         endTimer = setTimeout(() => {
           const said = input.value.trim();
           const idle = Date.now() - lastHeardAt;
-          let cap = sawPauseResume ? 6500 : 5000;
+          // 2600 base, not 5000: five seconds of silence before she even
+          // STARTS thinking reads as "it didn't hear me". The adaptive rules
+          // still protect real thinkers — anyone who pauses and resumes is
+          // marked a pauser and gets 6000, and trailing connectives ("and",
+          // "because", "um") buy extra time below. Fast finishers stop waiting.
+          let cap = sawPauseResume ? 6000 : 2600;
           if (CONT.test(said)) cap += 2500;
           if (!said && Date.now() - t0 < (auto ? 11000 : 75000)) { armEnd(); return; }
           if (said && idle < cap) { armEnd(); return; }
@@ -969,7 +974,7 @@
       if (rec.quietMs > 2000 && rms > 0.015) rec.pauser = true;
       if (rms > 0.015) { rec.spoke = true; rec.quietMs = 0; }
       else rec.quietMs += frameMs;
-      const pcap = rec.pauser ? 6500 : 5000;
+      const pcap = rec.pauser ? 6000 : 2800;  // same snappier base as the SR ear
       if ((rec.spoke && rec.quietMs > pcap) || (!rec.spoke && rec.quietMs > 12000)) recordFinish();
     };
     recSrcNode.connect(node); node.connect(recCtx.destination);
@@ -1302,7 +1307,15 @@
       let h;
       try { h = await (await fetch(API + '/health', { signal: ab.signal })).json(); }
       finally { ab.done(); }
-      if (h && h.ok && h.stt) { earsServer = true; mic.onclick = () => recToggle(false); }
+      // ONLY where the browser has no recognizer of its own. Server STT is a
+      // FALLBACK, not an upgrade: this line used to fire on every platform and
+      // silently demote desktop Chrome — which has working hands-free
+      // SpeechRecognition — to the tap-to-start / tap-to-send recorder, adding
+      // a silence wait, an upload and a server round-trip to every turn.
+      // Kevin: "tap to send doesn't need to be on PC, the active listening was
+      // working." Platform-honest (lesson 11): each device uses the best ear
+      // it actually has — SR where it exists, server recorder where it doesn't.
+      if (h && h.ok && h.stt && !SR) { earsServer = true; mic.onclick = () => recToggle(false); }
     } catch { /* old worker, or the probe timed out: browser SR stays */ }
   })();
 
