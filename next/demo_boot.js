@@ -483,9 +483,15 @@
       // staring at a page with NO WAY TO TALK TO HER, while the chip cheerily
       // says "tap the mic below". That is exactly the "I can't talk to Vera"
       // report. The show may fail; the controls may not.
+      // Runs the COMPLETE finish path, not just the class removal: #boot-veil
+      // is position:fixed inset:0 z-index:8, so dropping `boot-on` alone would
+      // reveal the controls under a full-screen overlay that eats every tap —
+      // visible but dead. (Caught by Codex's blind review before it shipped
+      // to anyone; finish() clears timers, stops the score, dissolves the hub,
+      // removes boot-on AND fades out the veil.)
       const chromeGuard = setTimeout(() => {
         if (settled) return;
-        document.body.classList.remove('boot-on');
+        finish(true);
       }, 40000);
       timers.push(chromeGuard);
 

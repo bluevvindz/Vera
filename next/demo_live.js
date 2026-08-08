@@ -54,6 +54,10 @@
       line('earOpen', String(earOpen));
       line('recording', String(!!recording));
       line('audio ctx', recCtx ? recCtx.state : 'none');
+      line('mic error', window.__micErr
+        ? window.__micErr + (window.__micErr === 'NotAllowedError' ? '  <-- BLOCKED: allow the mic in Chrome settings'
+          : window.__micErr === 'NotFoundError' ? '  <-- no microphone found' : '')
+        : 'none');
       line('mic peak', window.__micPeak === undefined ? 'no capture yet'
         : window.__micPeak.toFixed(4) + (window.__micPeak < 0.01 ? '  <-- SILENT, she hears nothing' : '  (speech detected)'));
       // Settles the iOS sample-rate hypothesis from the phone itself,
@@ -823,7 +827,11 @@
       stream = recStream;                                  // reuse the grant
       stream.getAudioTracks().forEach(k => { k.enabled = true; });
     } else {
-      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {}
+      // Record WHY. A denied permission used to reduce to null and surface as
+      // "tap the mic so she can listen" — an endless retry loop on the one
+      // platform where the recorder is the only voice path.
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      catch (e) { window.__micErr = (e && e.name) || 'error'; }
     }
     if (gen !== earsGen) {
       // Superseded (or retired) while the grant was pending — stand down
