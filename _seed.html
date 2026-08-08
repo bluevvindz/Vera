@@ -1,0 +1,10 @@
+<script>
+/* Reproduce Kevin's condition: a visitor WITH a saved Seed */
+localStorage.setItem('vera_brain_v1', JSON.stringify({
+  name: 'Kevin',
+  nodes: [{label:'Second Brain'},{label:'Acme Consulting'},{label:'Leads Ledger'},
+          {label:'Website Redesign'},{label:'Mobile App MVP'}]
+}));
+try{sessionStorage.setItem('vera_entry','voice');}catch(e){}
+location.replace('reactor.html?demo=1');
+</script>
