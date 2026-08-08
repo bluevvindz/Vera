@@ -761,10 +761,26 @@
   let recStream = null, recCtx = null, recSrcNode = null;
   let earsGen = 0;        // generation token (ported from the interview): a stale borrow must never clobber a newer one
   let earBorrow = false;  // a grant is pending — the ear claim exists with no capture behind it yet
+  // ?keepmic=1 — TEST SWITCH for the iOS permission-prompt storm.
+  // Default (off) = today's behaviour: the mic track is STOPPED after every
+  // listen, which releases iOS's audio session (that's what keeps her voice
+  // out of the earpiece) but makes the next listen re-acquire — and iPhone
+  // Chrome can re-prompt on every acquisition, which is the popup Kevin sees
+  // every few seconds. On (=1) = keep the granted track alive but DISABLED
+  // between listens: permission persists, no new prompt, and the session is
+  // still released by closing the AudioContext below.
+  const KEEP_MIC = /[?&]keepmic=1/.test(location.search);
+
   function releaseEars() {
     earsGen++;  // any borrow still awaiting its grant is now stale — it stands down
-    try { if (recStream) recStream.getTracks().forEach(t => { t.onended = null; t.stop(); }); } catch {}
-    recStream = null;
+    try {
+      if (recStream) recStream.getTracks().forEach(t => {
+        t.onended = null;
+        if (KEEP_MIC) t.enabled = false;   // keep the grant, mute the input
+        else t.stop();                     // full release (re-prompts on iOS)
+      });
+    } catch {}
+    if (!KEEP_MIC) recStream = null;
     try { if (recCtx) recCtx.close(); } catch {}
     recCtx = null; recSrcNode = null;
   }
@@ -794,7 +810,12 @@
     const ctx = new Ctx();
     recCtx = ctx;
     let stream = null;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {}
+    if (KEEP_MIC && recStream && recStream.getAudioTracks().some(k => k.readyState === 'live')) {
+      stream = recStream;                                  // reuse the grant
+      stream.getAudioTracks().forEach(k => { k.enabled = true; });
+    } else {
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {}
+    }
     if (gen !== earsGen) {
       // Superseded (or retired) while the grant was pending — stand down
       // without touching the newer borrow's stream or context.
