@@ -54,6 +54,8 @@
       line('earOpen', String(earOpen));
       line('recording', String(!!recording));
       line('audio ctx', recCtx ? recCtx.state : 'none');
+      line('mic peak', window.__micPeak === undefined ? 'no capture yet'
+        : window.__micPeak.toFixed(4) + (window.__micPeak < 0.01 ? '  <-- SILENT, she hears nothing' : '  (speech detected)'));
       // Settles the iOS sample-rate hypothesis from the phone itself,
       // before anyone writes code for it.
       line('track rate', recStream
@@ -809,6 +811,13 @@
     const Ctx = window.AudioContext || window.webkitAudioContext;
     const ctx = new Ctx();
     recCtx = ctx;
+    // Resume INSIDE the tap, BEFORE the getUserMedia await. iOS only honours
+    // resume() from a user gesture, and the await below ends the gesture — so
+    // the later `if (recCtx.state !== 'running') resume()` fires outside it,
+    // fails silently, and leaves a SUSPENDED context whose ScriptProcessor
+    // never runs. The UI shows LISTENING, zero audio is captured, and Whisper
+    // hallucinates "you" from the silence. That is the report.
+    try { ctx.resume(); } catch {}
     let stream = null;
     if (KEEP_MIC && recStream && recStream.getAudioTracks().some(k => k.readyState === 'live')) {
       stream = recStream;                                  // reuse the grant
@@ -930,6 +939,11 @@
     node.onaudioprocess = e => {
       rec.frames++;
       const d = e.inputBuffer.getChannelData(0);
+      // Peak level, surfaced in the diagnostic: silence vs speech is then a
+      // number Kevin can read off his phone instead of a feeling.
+      let pk = 0;
+      for (let i = 0; i < d.length; i += 16) { const v = d[i] < 0 ? -d[i] : d[i]; if (v > pk) pk = v; }
+      if (pk > (window.__micPeak || 0)) window.__micPeak = pk;
       const frameMs = (d.length / rec.rate) * 1000;
       if (rec.settleMs > 0) { rec.settleMs -= frameMs; return; }  // echo settle
       chunks.push(new Float32Array(d));
