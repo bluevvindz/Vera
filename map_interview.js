@@ -453,7 +453,12 @@
     try {
       const sig = name + '|' + nodes.map(n => n.label).join('|');
       const hue = [...sig].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 360;
-      if (hue > 8 && hue < 352) document.documentElement.style.filter = `hue-rotate(${hue}deg)`;
+      // CLAMPED — twin of demo_entry.js. This is the SECOND root-level
+      // hue-rotate (found by Codex's blind review; the first fix missed it):
+      // finishing the interview re-applied a full 0-359 rotation and turned
+      // the whole interface orange again for the visitor who just built a Seed.
+      const tint = (hue % 51) - 25;                    // -25..+25
+      if (Math.abs(tint) > 4) document.documentElement.style.filter = `hue-rotate(${tint}deg)`;
     } catch {}
   }
 
