@@ -442,6 +442,7 @@
         // Stage, not cockpit: the panels were a performance — they leave, and
         // the empty stage is the invitation to answer her.
         if (window.VERA_HUB) window.VERA_HUB.dissolve();
+        clearTimeout(chromeGuard);
         document.body.classList.remove('boot-on');  // the chrome returns
         veil.style.opacity = '0';
         setTimeout(() => { veil.remove(); resolve(); }, quick ? 250 : 700);
@@ -474,6 +475,20 @@
         standbyEl.textContent = '▸ MIC CHANNEL — AWAITING PERMISSION';
         col.appendChild(standbyEl);
       }, 450);
+      // FAILSAFE — the chrome ALWAYS comes back. `boot-on` hides #demo-talk
+      // (the mic, the text box, the send button) with visibility:hidden, and
+      // it is lifted only by the 'end' cue at ~30s. Anything that stops the
+      // cue chain — a mic permission promise that never settles on iOS, a
+      // stalled line, a backgrounded tab freezing timers — leaves the visitor
+      // staring at a page with NO WAY TO TALK TO HER, while the chip cheerily
+      // says "tap the mic below". That is exactly the "I can't talk to Vera"
+      // report. The show may fail; the controls may not.
+      const chromeGuard = setTimeout(() => {
+        if (settled) return;
+        document.body.classList.remove('boot-on');
+      }, 40000);
+      timers.push(chromeGuard);
+
       const begin = () => {
         if (began || settled) return;
         began = true;
