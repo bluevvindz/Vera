@@ -25,7 +25,15 @@
     const sig = seed.name + '|' + seed.nodes.map(n => n.label).join('|');
     const hue = [...sig].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 360;
     window.VERA_SEED = { name: seed.name, hue, nodes: seed.nodes };
-    if (hue > 8 && hue < 352) document.documentElement.style.filter = `hue-rotate(${hue}deg)`;
+    // CLAMPED. This used to rotate the WHOLE DOCUMENT by an arbitrary 0-359°
+    // hash, so any returning visitor whose Seed hashed into the warm range saw
+    // the entire interface — ring, text, nodes, chrome — rendered ORANGE, and
+    // no palette fix could ever reach it (the filter is applied after paint).
+    // Kevin's own Seed hashed there, which is why he saw orange for weeks
+    // while fresh visitors and every screenshot showed cyan. Personalisation
+    // must never be able to leave the brand: a narrow cool band only.
+    const tint = (hue % 51) - 25;                      // -25°..+25°
+    if (Math.abs(tint) > 4) document.documentElement.style.filter = `hue-rotate(${tint}deg)`;
   }
   function finish(voice, fresh) {
     ENTRY.done = true; ENTRY.voice = voice; ENTRY.fresh = fresh;
