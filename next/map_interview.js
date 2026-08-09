@@ -820,6 +820,9 @@
     const Ctx = window.AudioContext || window.webkitAudioContext;
     const ctx = new Ctx();
     recCtx = ctx;
+    // Same in-gesture resume as the reactor's ensureEars: iOS only honours
+    // resume() from a tap, and the getUserMedia await below ends the tap.
+    try { ctx.resume(); } catch {}
     let stream = null;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {}
     if (gen !== earsGen) {
