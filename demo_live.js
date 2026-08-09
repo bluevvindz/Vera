@@ -46,6 +46,7 @@
       line('device', /iPhone|iPad/.test(navigator.userAgent) ? 'iOS (WebKit — recorder tier only)'
         : /Android/.test(navigator.userAgent) ? 'Android' : 'desktop/other');
       line('SpeechRecog', SR ? 'available' : 'ABSENT (recorder is the only path)');
+      line('secure ctx', window.isSecureContext ? 'yes (https)' : 'NO — http page, mic APIs absent');
       line('getUserMedia', (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'available' : 'ABSENT');
       line('server ears', typeof earsServer !== 'undefined' && earsServer ? 'on (server STT)' : 'off (browser tier)');
       line('reactor mode', statusEl ? statusEl.textContent : '?');
@@ -846,6 +847,7 @@
       return false;
     }
     if (!stream) { recStream = null; return false; }
+    window.__micErr = null;  // a later successful grant clears the stale error
     recStream = stream;
     recSrcNode = recCtx.createMediaStreamSource(recStream);
     return true;
@@ -925,7 +927,9 @@
     recStream.getTracks().forEach(t => { t.onended = () => recordFinish(); });
     const node = recCtx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
-    const rec = { node, chunks, rate: recCtx.sampleRate,
+    window.__micPeak = 0;  // diag peak resets PER CAPTURE — one good take must
+                           // never make a later dead one look healthy (Codex F6)
+    const rec = { node, chunks, rate: recCtx.sampleRate, peak: 0,
       auto: !!auto, spoke: false, quietMs: 0, frames: 0,
       draft: input.value,  // typed half-answers survive a silent/dead capture
       settleMs: 350,  // her own voice tail is still in the room — not an answer
@@ -957,6 +961,7 @@
       let pk = 0;
       for (let i = 0; i < d.length; i += 16) { const v = d[i] < 0 ? -d[i] : d[i]; if (v > pk) pk = v; }
       if (pk > (window.__micPeak || 0)) window.__micPeak = pk;
+      if (pk > rec.peak) rec.peak = pk;   // per-capture, unlike the sticky diag max
       const frameMs = (d.length / rec.rate) * 1000;
       if (rec.settleMs > 0) { rec.settleMs -= frameMs; return; }  // echo settle
       chunks.push(new Float32Array(d));
@@ -1019,7 +1024,12 @@
       return;
     }
     let total = 0; for (const c of r.chunks) total += c.length;
-    if ((r.auto && !r.spoke) || total < r.rate * 0.4) {
+    // Manual captures used to skip the energy gate entirely (the auto-only
+    // `spoke` check) — a near-silent WAV went to Whisper, which hallucinates
+    // a tiny transcript like "you" from silence. That WAS Kevin's symptom
+    // (Codex finding 2). Silence is now rejected LOCALLY for both kinds:
+    // no upload, an honest message, the typed draft preserved.
+    if ((r.auto && !r.spoke) || total < r.rate * 0.4 || r.peak < 0.006) {
       // Their typed draft survives a silent bow-out — and fresh typing
       // beats the stale snapshot: restore only into an empty box.
       if (!input.value.trim()) input.value = r.draft;
