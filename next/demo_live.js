@@ -31,51 +31,52 @@
 
   function diagPanel() {
     let p = document.getElementById('vera-diag');
-    if (p) { p.remove(); return; }
+    if (p) { clearInterval(p._live); p.remove(); return; }
     p = document.createElement('div');
     p.id = 'vera-diag';
-    p.style.cssText = 'position:fixed;inset:auto 8px 8px 8px;z-index:99999;max-height:62vh;' +
-      'overflow:auto;background:rgba(3,9,16,0.96);border:1px solid #3fd9ff;border-radius:8px;' +
-      'color:#cfe4ec;font:12px/1.55 ui-monospace,Menlo,Consolas,monospace;padding:12px 14px;' +
-      'white-space:pre-wrap;box-shadow:0 0 30px rgba(63,217,255,0.25)';
+    // Compact top strip — a diagnostic must never bury the mic it diagnoses.
+    // The controls stay visible and tappable below it.
+    p.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:99999;max-height:34vh;' +
+      'overflow:auto;background:rgba(3,9,16,0.94);border:1px solid #3fd9ff;border-radius:8px;' +
+      'color:#cfe4ec;font:10.5px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:8px 10px;' +
+      'white-space:pre-wrap;box-shadow:0 0 20px rgba(63,217,255,0.2)';
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const statusEl = document.getElementById('status');
-    const rows = [];
-    const line = (k, v) => rows.push(k.padEnd(16) + ' ' + v);
-    try {
-      line('device', /iPhone|iPad/.test(navigator.userAgent) ? 'iOS (WebKit — recorder tier only)'
-        : /Android/.test(navigator.userAgent) ? 'Android' : 'desktop/other');
-      line('SpeechRecog', SR ? 'available' : 'ABSENT (recorder is the only path)');
-      line('secure ctx', window.isSecureContext ? 'yes (https)' : 'NO — http page, mic APIs absent');
-      line('getUserMedia', (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'available' : 'ABSENT');
-      line('server ears', typeof earsServer !== 'undefined' && earsServer ? 'on (server STT)' : 'off (browser tier)');
-      line('reactor mode', statusEl ? statusEl.textContent : '?');
-      line('busy (floor)', String(busy) + (busy ? '  <-- WEDGED? mic is gated while true' : ''));
-      line('replyPlaying', String(replyPlaying));
-      line('earOpen', String(earOpen));
-      line('recording', String(!!recording));
-      line('audio ctx', recCtx ? recCtx.state : 'none');
-      line('mic error', window.__micErr
-        ? window.__micErr + (window.__micErr === 'NotAllowedError' ? '  <-- BLOCKED: allow the mic in Chrome settings'
-          : window.__micErr === 'NotFoundError' ? '  <-- no microphone found' : '')
-        : 'none');
-      line('mic peak', window.__micPeak === undefined ? 'no capture yet'
-        : window.__micPeak.toFixed(4) + (window.__micPeak < 0.01 ? '  <-- SILENT, she hears nothing' : '  (speech detected)'));
-      // Settles the iOS sample-rate hypothesis from the phone itself,
-      // before anyone writes code for it.
-      line('track rate', recStream
-        ? String(((recStream.getAudioTracks()[0].getSettings() || {}).sampleRate) || '?')
-          + ' vs ctx ' + (recCtx ? recCtx.sampleRate : '?')
-        : 'no stream');
-      line('sound', soundOn ? 'on' : 'muted');
-      line('API', API ? API.replace(/^https?:\/\//, '') : 'NOT SET');
-    } catch (e) { rows.push('state read failed: ' + e.message); }
-    rows.push('');
-    rows.push('errors: ' + (DIAG.errors.length ? '' : 'none'));
-    DIAG.errors.slice(0, 6).forEach(e => rows.push('  ' + e));
-    rows.push('net: ' + (DIAG.fetches.length ? '' : 'no failures'));
-    DIAG.fetches.slice(-4).forEach(e => rows.push('  ' + e));
-    p.textContent = 'VERA listening diagnostic\n' + '-'.repeat(34) + '\n' + rows.join('\n');
+    const body = document.createElement('div');
+    const render = () => {
+      const statusEl = document.getElementById('status');
+      const rows = [];
+      const line = (k, v) => rows.push(k.padEnd(13) + ' ' + v);
+      try {
+        // LIVE — re-rendered every 600ms. The action lines lead: Kevin read a
+        // frozen snapshot mid-capture and we couldn't tell stale from true.
+        line('mic error', window.__micErr
+          ? window.__micErr + (window.__micErr === 'NotAllowedError' ? '  <-- BLOCKED: allow mic in Chrome settings'
+            : window.__micErr === 'NotFoundError' ? '  <-- no microphone found' : '')
+          : 'none');
+        line('mic peak', window.__micPeak === undefined ? 'no capture yet'
+          : window.__micPeak.toFixed(4) + (window.__micPeak < 0.01 ? '  <-- SILENT' : '  (speech detected)'));
+        line('frames', recording ? String(recording.frames) + (recording.frames ? ' arriving' : '  <-- ZERO: dead pipe')
+          : 'no live capture');
+        line('audio ctx', recCtx ? recCtx.state : 'none');
+        line('recording', String(!!recording));
+        line('earOpen', String(earOpen));
+        line('busy', String(busy));
+        line('mode', statusEl ? statusEl.textContent : '?');
+        line('tier', typeof earsServer !== 'undefined' && earsServer ? 'server STT' : (SR ? 'browser SR' : 'none'));
+        line('secure', window.isSecureContext ? 'https' : 'NO — http, mic absent');
+        line('track rate', recStream
+          ? String(((recStream.getAudioTracks()[0].getSettings() || {}).sampleRate) || '?')
+            + ' vs ctx ' + (recCtx ? recCtx.sampleRate : '?')
+          : 'no stream');
+        line('sound', soundOn ? 'on' : 'muted');
+      } catch (e) { rows.push('state read failed: ' + e.message); }
+      if (DIAG.errors.length) { rows.push('err: ' + DIAG.errors[0].slice(0, 60)); }
+      if (DIAG.fetches.length) { rows.push('net: ' + DIAG.fetches.slice(-2).join(' | ')); }
+      body.textContent = 'VERA diagnostic (live)\n' + '-'.repeat(30) + '\n' + rows.join('\n');
+    };
+    render();
+    p._live = setInterval(render, 600);
+    p.appendChild(body);
     const probe = document.createElement('button');
     probe.textContent = 'Test her brain link';
     probe.style.cssText = 'margin-top:10px;background:transparent;border:1px solid #3fd9ff;' +
@@ -93,7 +94,7 @@
     const close = document.createElement('button');
     close.textContent = 'close';
     close.style.cssText = probe.style.cssText + ';margin-left:8px';
-    close.onclick = () => p.remove();
+    close.onclick = () => { clearInterval(p._live); p.remove(); };
     p.append(probe, close);
     document.body.appendChild(p);
   }
