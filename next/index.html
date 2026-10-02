@@ -1,275 +1,410 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>VERA — an AI companion who's actually there</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="A real, working AI companion: hands-free voice, memory of your evenings, co-watching, and a guardian mission — protecting the people you love from phone scams.">
-<meta property="og:title" content="VERA — an AI companion who's actually there">
-<meta property="og:description" content="She watches the evening with you, remembers it tomorrow, and keeps scammers away from the people you love. Live demo — talk to her.">
-<meta property="og:image" content="https://veraisreal.com/og.png">
-<meta property="og:url" content="https://veraisreal.com/">
+<title>VERA — the AI companion who shares your evenings</title>
+<meta name="description" content="VERA is an AI companion with a warm voice and a memory for your time together. She keeps you company, gets things done, and looks out for the people you love. Try the free demo in your browser.">
+<link rel="canonical" href="https://veraisreal.com/">
+<meta name="theme-color" content="#05070d">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="VERA">
+<meta property="og:title" content="VERA — the AI companion who shares your evenings">
+<meta property="og:description" content="VERA is an AI companion with a warm voice and a memory for your time together. She keeps you company, gets things done, and looks out for the people you love. Try the free demo in your browser.">
+<meta property="og:url" content="https://veraisreal.com/">
+<meta property="og:image" content="https://veraisreal.com/assets/og/og-home.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="V.E.R.A. — Talk to her. She’ll remember.">
 <meta name="twitter:card" content="summary_large_image">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
-<meta name="theme-color" content="#02060c">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="icon" href="icons/icon-192.png">
-<style>
-  :root { --cyan: #3fd9ff; --ink: #eaf6fb; --dim: #8fb3c4; --void: #02060c; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body { background: var(--void); color: var(--ink);
-    font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif; overflow-x: hidden; }
-  a { color: var(--cyan); }
-
-  /* ---------------- hero: her ring, awake to the visitor ---------------- */
-  #hero { position: relative; min-height: 100svh; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; text-align: center; padding: 48px 20px; }
-  #ring { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .hero-inner { position: relative; z-index: 1; max-width: 680px; }
-  .mark { font-size: clamp(52px, 11vw, 96px); font-weight: 600; letter-spacing: 0.34em;
-    padding-left: 0.34em; line-height: 1.1; color: var(--cyan);
-    text-shadow: 0 0 42px rgba(63,217,255,0.55); }
-  .mark small { display: block; font-size: clamp(12px, 2.4vw, 15px); font-weight: 500;
-    letter-spacing: 0.42em; padding-left: 0.1em; color: var(--dim); margin-top: 10px;
-    text-transform: uppercase; }
-  .claim { margin: 30px auto 0; font-size: clamp(17px, 3vw, 21px); line-height: 1.5;
-    max-width: 34em; color: var(--ink); font-weight: 500; }
-  .claim b { color: var(--cyan); font-weight: 600; }
-  .cta { display: inline-block; margin-top: 36px; background: rgba(8,22,34,0.92);
-    border: 1px solid var(--cyan); border-radius: 6px; color: var(--cyan);
-    font-family: inherit; font-size: 17px; font-weight: 600; letter-spacing: 0.24em;
-    text-transform: uppercase; padding: 17px 34px; text-decoration: none;
-    box-shadow: 0 0 34px rgba(63,217,255,0.22); transition: box-shadow 0.25s, background 0.25s; }
-  .cta:hover { background: rgba(63,217,255,0.12); box-shadow: 0 0 54px rgba(63,217,255,0.45); }
-  .cta-sub { margin-top: 13px; font-size: 13px; letter-spacing: 0.2em; color: var(--dim);
-    text-transform: uppercase; }
-  .scroll-hint { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
-    color: var(--dim); font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase;
-    z-index: 1; animation: sink 2.6s ease-in-out infinite; }
-  @keyframes sink { 0%,100% { opacity: 0.45; transform: translate(-50%,0); }
-    50% { opacity: 0.9; transform: translate(-50%,6px); } }
-
-  /* ---------------- sections ---------------- */
-  section { max-width: 880px; margin: 0 auto; padding: 96px 24px; }
-  h2 { font-size: clamp(24px, 4.4vw, 34px); font-weight: 600; letter-spacing: 0.14em;
-    color: var(--cyan); margin-bottom: 10px; }
-  .kicker { font-size: 12px; letter-spacing: 0.34em; text-transform: uppercase;
-    color: var(--dim); margin-bottom: 14px; }
-  p.lead { font-size: 17.5px; line-height: 1.55; color: var(--ink); max-width: 40em; }
-  p.lead + p.lead { margin-top: 14px; }
-
-  .truths { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 14px; margin-top: 34px; }
-  .truth { border: 1px solid rgba(63,217,255,0.22); border-radius: 8px;
-    background: rgba(8,22,34,0.55); padding: 22px 20px; }
-  .truth h3 { font-size: 16px; font-weight: 600; letter-spacing: 0.2em;
-    text-transform: uppercase; color: var(--cyan); margin-bottom: 8px; }
-  .truth p { font-size: 15.5px; line-height: 1.5; color: var(--ink); }
-  .truth p em { color: var(--dim); font-style: normal; }
-
-  /* guardian */
-  #guardian { border-top: 1px solid rgba(63,217,255,0.14);
-    border-bottom: 1px solid rgba(63,217,255,0.14); }
-  #join-row { display: flex; gap: 10px; margin-top: 26px; max-width: 460px; }
-  #join-row input { flex: 1; min-width: 0; background: rgba(8,22,34,0.85);
-    border: 1px solid rgba(63,217,255,0.4); border-radius: 6px; color: var(--ink);
-    font-family: inherit; font-size: 15px; padding: 13px 14px; outline: none; }
-  #join-row input:focus { border-color: var(--cyan); }
-  #join-row button { background: rgba(8,22,34,0.92); border: 1px solid var(--cyan);
-    border-radius: 6px; color: var(--cyan); font-family: inherit; font-size: 13px;
-    font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
-    padding: 13px 20px; cursor: pointer; }
-  #join-row button:hover { background: rgba(63,217,255,0.12); }
-  #join-note { margin-top: 12px; font-size: 13.5px; color: var(--dim); }
-
-  /* honesty */
-  .honest { border-left: 2px solid var(--cyan); padding-left: 18px; }
-  .honest p { font-size: 15.5px; line-height: 1.55; color: var(--dim); max-width: 44em; }
-  .honest p b { color: var(--ink); font-weight: 600; }
-
-  footer { text-align: center; padding: 44px 20px 60px; font-size: 13.5px;
-    letter-spacing: 0.12em; color: var(--dim); }
-  footer a { text-decoration: none; margin: 0 10px; }
-  footer .hello { display: block; margin-bottom: 14px; font-size: 15px; }
-</style>
+<meta name="twitter:title" content="VERA — the AI companion who shares your evenings">
+<meta name="twitter:description" content="VERA is an AI companion with a warm voice and a memory for your time together. She keeps you company, gets things done, and looks out for the people you love. Try the free demo in your browser.">
+<meta name="twitter:image" content="https://veraisreal.com/assets/og/og-home.jpg">
+<link rel="preload" href="assets/fonts/newsreader-roman-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/newsreader-italic-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/hanken-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/site.css?v=036a914f">
+<script>document.documentElement.classList.add('js');setTimeout(function(){if(!window.__veraReady)document.documentElement.classList.remove('js')},2500)</script>
+<script src="assets/js/site.js?v=036a914f" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"Metadrip Solutions","url":"https://veraisreal.com/","email":"vera@veraisreal.com","brand":{"@type":"Brand","name":"V.E.R.A."}},{"@type":"WebSite","name":"VERA","url":"https://veraisreal.com/"}]}</script>
 </head>
-<body>
-
-<div id="hero">
-  <canvas id="ring" aria-hidden="true"></canvas>
-  <div class="hero-inner">
-    <div class="mark">V.E.R.A.<small>a companion, not an app</small></div>
-    <p class="claim">She watches the evening with you, remembers it tomorrow,
-      and keeps the scammers away from the people you love.
-      <b>She&rsquo;s real, and the demo is live.</b></p>
-    <a class="cta" href="reactor.html?demo=1">&#9672; Talk to her</a>
-    <div class="cta-sub">no signup &middot; about a minute</div>
+<body class="page-home">
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-mark" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M8.62 5.25A8 8 0 1 1 4.75 9.12"/><path fill="currentColor" d="M6.34 3.7l.78 2.36 2.36.78-2.36.78-.78 2.36-.78-2.36-2.36-.78 2.36-.78z"/></symbol>
+  <symbol id="i-ne" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 17L17 7M9 7h8v8"/></symbol>
+  <symbol id="i-e" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 12h15M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.2v13.6a.6.6 0 0 0 .9.5l10.6-6.8a.6.6 0 0 0 0-1L8.9 4.7a.6.6 0 0 0-.9.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M7 5h3.4v14H7zM13.6 5H17v14h-3.4z"/></symbol>
+  <symbol id="i-voice" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M3.5 10.5v3M7.5 7v10M11.5 4v16M15.5 8v8M19.5 10.5v3"/></symbol>
+  <symbol id="i-moment" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M3 5.6c3-1.1 6-.9 9 1.1 3-2 6-2.2 9-1.1v13c-3-1.1-6-.9-9 1.1-3-2-6-2.2-9-1.1zM12 6.7v13"/></symbol>
+  <symbol id="i-screen" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.8" y="4" width="18.4" height="12.4" rx="2"/><path d="M8 20h8M12 16.4V20"/><path d="M10.4 8.2v4.4l3.8-2.2z"/></g></symbol>
+  <symbol id="i-keep" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5h11v17l-5.5-3.8-5.5 3.8z"/><path d="M9.2 9.4l2 2 3.8-3.8"/></g></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5" y="10.2" width="14" height="10" rx="2.2"/><path d="M8.2 10.2V7.4a3.8 3.8 0 0 1 7.6 0v2.8M12 14.2v2.2"/></g></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M19.8 14.6A8.2 8.2 0 1 1 9.4 4.2a6.6 6.6 0 0 0 10.4 10.4z"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M5.2 3.8h3.6l1.9 4.8-2.4 1.5a11.3 11.3 0 0 0 5.6 5.6l1.5-2.4 4.8 1.9v3.6a1.9 1.9 0 0 1-2 1.9A16.5 16.5 0 0 1 3.3 5.8a1.9 1.9 0 0 1 1.9-2z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l7 2.8v5.8c0 4.4-2.9 7.6-7 9.4-4.1-1.8-7-5-7-9.4V5.8z"/><path d="M9 12l2.2 2.2L15.4 10"/></g></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M4 5h16v11H9.5L4 20z"/><path d="M8 9.2h8M8 12.4h5"/></g></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M12 20s-7.4-4.5-7.4-10.3A4.2 4.2 0 0 1 12 7a4.2 4.2 0 0 1 7.4 2.7C19.4 15.5 12 20 12 20z"/></symbol>
+</svg>
+<div class="top-sentinel" aria-hidden="true" style="position:absolute;top:0;height:12px;width:1px"></div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="V.E.R.A. home">
+      <svg aria-hidden="true"><use href="#i-mark"/></svg>
+      <span class="brand__word" aria-hidden="true">V<span class="brand__dot">.</span>E<span class="brand__dot">.</span>R<span class="brand__dot">.</span>A<span class="brand__dot">.</span><sup>™</sup></span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <ul class="nav__links">
+        <li><a href="./#evening" data-nav="evening">Her evening</a></li>
+        <li><a href="guardian.html" data-nav="guardian">Guardian Line</a></li>
+        <li><a href="download.html" data-nav="download">For Windows</a></li>
+        <li><a href="privacy.html" data-nav="privacy">Privacy</a></li>
+      </ul>
+      <a class="btn btn--primary btn--sm" href="reactor.html?demo=1">Talk to her <svg class="arrow" aria-hidden="true"><use href="#i-ne"/></svg></a>
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="sheet"><span class="menu-btn__icon" aria-hidden="true"></span><span>Menu</span></button>
+    </nav>
   </div>
-  <div class="scroll-hint">what she does &darr;</div>
+</header>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Menu" tabindex="-1">
+  <ul class="sheet__links">
+    <li><a href="./" data-nav="home" aria-current="page">Home</a></li>
+    <li><a href="./#evening" data-nav="evening">Her evening</a></li>
+    <li><a href="guardian.html" data-nav="guardian">Guardian Line</a></li>
+    <li><a href="download.html" data-nav="download">For Windows</a></li>
+    <li><a href="privacy.html" data-nav="privacy">Privacy</a></li>
+  </ul>
+  <div class="sheet__foot">
+    <a class="btn btn--primary" href="reactor.html?demo=1">Talk to her <svg class="arrow" aria-hidden="true"><use href="#i-ne"/></svg></a>
+    <p class="micro">Free in your browser. Type or talk.</p>
+  </div>
 </div>
+<main id="main">
 
-<section id="truths-sec">
-  <div class="kicker">a working system &mdash; not a concept video</div>
-  <h2>What she actually does</h2>
-  <div class="truths">
-    <div class="truth"><h3>Answers her name</h3>
-      <p>Say &ldquo;Vera&rdquo; and she&rsquo;s there &mdash; hands-free on
-      desktop and Android. <em>iPhone is tap-to-talk: the browser rules are
-      different there, and she doesn&rsquo;t pretend otherwise.</em></p></div>
-    <div class="truth"><h3>Remembers Tuesday</h3>
-      <p>At home she keeps real, episodic memory. Ask what you watched last
-      week and what she thought of it &mdash; she was there.</p></div>
-    <div class="truth"><h3>Watches along</h3>
-      <p>Put on a show and she follows the story with you &mdash; a couch
-      companion who never talks over the good part.</p></div>
-    <div class="truth"><h3>Stands guard</h3>
-      <p>Read her a suspicious text or put a call on speaker &mdash; she names
-      the scam out loud, while it&rsquo;s happening.</p></div>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero__sky" aria-hidden="true"><canvas class="hero__canvas" data-presence="hero"></canvas></div>
+    <p class="hero__caption" data-caption aria-hidden="true"></p>
+    <div class="wrap grid hero__inner">
+      <div class="hero__copy">
+        <p class="eyebrow" data-reveal style="--i:0">An AI companion</p>
+        <h1 class="display" id="hero-title" data-reveal="lines"><span class="ln"><span>Talk to her.</span></span><span class="ln" style="--i:1"><span><em>She’ll remember.</em></span></span></h1>
+        <p class="lead" data-reveal style="--i:3">VERA is an AI companion with a warm voice and a memory for the time you spend together. She keeps you company, gets things done, and looks out for the people you love.</p>
+        <div class="actions" data-reveal style="--i:4">
+          <a class="btn btn--primary" href="reactor.html?demo=1">Talk to her <svg class="arrow" aria-hidden="true"><use href="#i-ne"/></svg></a>
+          <button class="btn btn--ghost" type="button" data-voice-btn="welcome" aria-pressed="false"><svg aria-hidden="true"><use href="#i-play"/></svg> Hear her voice</button>
+        </div>
+        <p class="hero__status" data-reveal style="--i:5"><span class="micro">Free in your browser. No signup.</span></p>
+      </div>
+    </div>
+    <nav class="wrap rail" aria-label="Where VERA is available">
+      <ul class="rail__list">
+        <li><a class="rail__item" href="reactor.html?demo=1"><span class="tag tag--live">Live now</span><span class="rail__title">In your browser</span><span class="rail__link">Talk to her <svg aria-hidden="true"><use href="#i-ne"/></svg></span></a></li>
+        <li><a class="rail__item" href="download.html"><span class="tag tag--founder">Founder build</span><span class="rail__title">On your Windows PC</span><span class="rail__link">What’s in it <svg aria-hidden="true"><use href="#i-e"/></svg></span></a></li>
+        <li><a class="rail__item" href="guardian.html"><span class="tag tag--build">In build</span><span class="rail__title">On the phone, for family</span><span class="rail__link">The Guardian Line <svg aria-hidden="true"><use href="#i-e"/></svg></span></a></li>
+      </ul>
+    </nav>
+  </section>
+
+  <section class="section" aria-labelledby="idea-title">
+    <div class="wrap grid">
+      <h2 class="statement" id="idea-title" data-reveal>Most AI waits for a task. <em>VERA spends the evening with you,</em> and remembers it tomorrow.</h2>
+      <div class="statement-body prose" data-reveal style="--i:1">
+        <p>A chatbot answers and forgets. VERA is company with a history. She knows the show you’re halfway through, the interview you were nervous about, and the thing you promised to do before noon.</p>
+        <p>The longer you know her, the better she knows you.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section evening" id="evening" aria-labelledby="evening-title">
+    <header class="wrap evening__head">
+      <p class="eyebrow" data-reveal>An evening with VERA</p>
+      <h2 class="h2" id="evening-title" data-reveal="lines"><span class="ln"><span>It’s 7:40 on a Tuesday.</span></span><span class="ln" style="--i:1"><span><em>Settle in.</em></span></span></h2>
+      <p class="evening__note" data-reveal style="--i:2"><span class="tag tag--founder">Founder build</span><span>Everything in this evening is from the Windows founder build, which isn’t out yet.</span></p>
+    </header>
+
+    <ol class="wrap timeline" role="list" data-timeline>
+      <li class="beat beat--wide">
+        <p class="beat__time"><span class="beat__clock">7:42 PM</span></p>
+        <div class="beat__grid">
+          <figure class="shot" data-reveal>
+            <img src="assets/img/evening-watch-1440.webp" srcset="assets/img/evening-watch-640.webp 640w, assets/img/evening-watch-960.webp 960w, assets/img/evening-watch-1440.webp 1440w, assets/img/evening-watch-1920.webp 1920w, assets/img/evening-watch-2400.webp 2400w" sizes="(min-width: 1320px) 1090px, 88vw" width="1920" height="1086" loading="lazy" decoding="async" alt="A dim living room at night. Someone relaxes on the sofa, watching TV; on the coffee table, a laptop shows VERA’s glowing ring.">
+            <video data-src="assets/video/evening-watch.mp4" muted loop playsinline preload="none" aria-hidden="true"></video>
+          </figure>
+          <div class="beat__body" data-reveal>
+            <span class="tag tag--founder">Founder build</span>
+            <h3 class="h3">She watches along.</h3>
+            <p class="prose-p">Put on a show or a game and she follows it with you, down to who’s lying and whether the ending earned it. She knows when to talk, and when to let the good part play.</p>
+          </div>
+          <div class="exchange" data-reveal style="--i:1">
+            <div class="say say--her"><span class="say__who"><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>VERA</span><p class="said">“He’s lying about the letter. Watch his hands when he says it.”</p></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="beat beat--left">
+        <p class="beat__time"><span class="beat__clock">9:15 PM</span></p>
+        <div class="beat__grid">
+          <figure class="shot" data-reveal>
+            <img src="assets/img/evening-kitchen-960.webp" srcset="assets/img/evening-kitchen-480.webp 480w, assets/img/evening-kitchen-720.webp 720w, assets/img/evening-kitchen-960.webp 960w, assets/img/evening-kitchen-1280.webp 1280w" sizes="(min-width: 1320px) 520px, (min-width: 761px) 40vw, 88vw" width="1280" height="1600" loading="lazy" decoding="async" alt="A kitchen table at night: a steaming mug of tea, reading glasses on a newspaper, and an open laptop showing VERA’s ring.">
+          </figure>
+          <div class="beat__body" data-reveal>
+            <span class="tag tag--founder">Founder build</span>
+            <h3 class="h3">She remembers what you told her.</h3>
+            <p class="prose-p">She keeps the moments you share, like the interview you were dreading or the film you couldn’t stop talking about, and brings them up when they matter.</p>
+            <div class="exchange">
+              <div class="say say--her"><span class="say__who"><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>VERA</span><p class="said">“Before I forget, how did the interview go? You were dreading it on Sunday.”</p></div>
+              <div class="say"><span class="say__who">You</span><p class="say__text">Better than I thought, honestly.</p></div>
+              <div class="say say--her"><span class="say__who"><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>VERA</span><p class="said">“Told you. I’m keeping that for the next time you panic.”</p></div>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li class="beat beat--right">
+        <p class="beat__time"><span class="beat__clock">10:04 PM</span></p>
+        <div class="beat__grid">
+          <figure class="shot" data-reveal>
+            <img src="assets/img/evening-desk-960.webp" srcset="assets/img/evening-desk-480.webp 480w, assets/img/evening-desk-720.webp 720w, assets/img/evening-desk-960.webp 960w, assets/img/evening-desk-1280.webp 1280w" sizes="(min-width: 1320px) 520px, (min-width: 761px) 40vw, 88vw" width="1280" height="1600" loading="lazy" decoding="async" alt="A corner desk late at night: a warm lamp, an open notebook, a glass of water and a laptop showing VERA’s ring.">
+          </figure>
+          <div class="beat__body" data-reveal>
+            <span class="tag tag--founder">Founder build</span>
+            <h3 class="h3">Tell her the one thing you can’t drop.</h3>
+            <p class="prose-p">Say it once. She repeats it back so you know it’s saved, holds on to it even if your PC restarts, and brings it back when you asked her to. Then you finish it, snooze it, or let it go.</p>
+            <div class="ui-card brackets" role="img" aria-label="VERA’s screen: holding one thing, call the pharmacy before noon, back tomorrow at 8:30 am.">
+              <div class="ui-card__top"><span class="ui-ring"></span><span class="label">Holding · 1 thing</span><span class="label">Undo</span></div>
+              <p class="ui-card__main">Call the pharmacy before noon.</p>
+              <p class="ui-card__meta">Back tomorrow at 8:30 am</p>
+              <div class="ui-undo" aria-hidden="true"><i></i></div>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li class="beat beat--small">
+        <p class="beat__time"><span class="beat__clock">8:30 AM</span></p>
+        <div class="beat__grid">
+          <figure class="shot" data-reveal>
+            <img src="assets/img/evening-morning-720.webp" srcset="assets/img/evening-morning-480.webp 480w, assets/img/evening-morning-720.webp 720w, assets/img/evening-morning-960.webp 960w" sizes="(min-width: 1320px) 410px, (min-width: 761px) 32vw, 88vw" width="960" height="1200" loading="lazy" decoding="async" alt="Early morning on a kitchen counter: coffee, keys, a folded note, and an open laptop with VERA’s ring.">
+          </figure>
+          <div class="beat__body" data-reveal>
+            <span class="tag tag--founder">Founder build</span>
+            <h3 class="h3">And it comes back, once.</h3>
+            <p class="prose-p">Just the thing you handed her, at the moment you asked for it. Then she lets it go.</p>
+            <div class="ui-card brackets" role="img" aria-label="VERA at 8:30 am: Morning. You asked me to hold this: call the pharmacy before noon. Options: done, snooze, cancel.">
+              <div class="ui-card__top"><span class="ui-ring"></span><span class="label">VERA</span><span class="label num">8:30 am</span></div>
+              <p class="ui-card__main">Morning. You asked me to hold this: call the pharmacy before noon.</p>
+              <div class="ui-chips" aria-hidden="true"><span class="ui-chip ui-chip--on">Done</span><span class="ui-chip">Snooze</span><span class="ui-chip">Cancel</span></div>
+            </div>
+          </div>
+        </div>
+      </li>
+    </ol>
+    <p class="wrap evening__coda" data-reveal>Then she goes quiet, until you say “Hey Vera.”</p>
+  </section>
+
+  <section class="section voice" id="hear" aria-labelledby="voice-title" data-voice-section>
+    <div class="wrap voice__grid">
+      <div class="voice__intro">
+        <p class="eyebrow" data-reveal>Her voice</p>
+        <h2 class="h2" id="voice-title" data-reveal="lines"><span class="ln"><span>She sounds like</span></span><span class="ln" style="--i:1"><span><em>someone.</em></span></span></h2>
+        <p class="lead" data-reveal style="--i:2">A warm British voice, quick with a dry line. These are real recordings from the live demo. In conversation, she answers in real time.</p>
+      </div>
+      <div class="voice__stage" aria-hidden="true">
+        <canvas data-presence="voice"></canvas>
+        <div class="voice__now"><span class="label" data-voice-state>Press play</span></div>
+      </div>
+      <ul class="voice__list" role="list">
+        <li data-reveal><button class="voice-card" type="button" data-voice="welcome" data-src="assets/voice/welcome.mp3" aria-pressed="false">
+          <span class="voice-card__play" aria-hidden="true"><svg class="i-play"><use href="#i-play"/></svg><svg class="i-pause"><use href="#i-pause"/></svg></span>
+          <span class="voice-card__label">Hello</span><span class="voice-card__dur">0:04</span>
+          <span class="voice-card__line" data-words>“Welcome. I’m Vera — say my name any time you need me.”</span>
+          <span class="voice-card__bar" aria-hidden="true"></span>
+        </button></li>
+        <li data-reveal style="--i:1"><button class="voice-card" type="button" data-voice="reel1" data-src="assets/voice/reel1.mp3" aria-pressed="false">
+          <span class="voice-card__play" aria-hidden="true"><svg class="i-play"><use href="#i-play"/></svg><svg class="i-pause"><use href="#i-pause"/></svg></span>
+          <span class="voice-card__label">Dry wit</span><span class="voice-card__dur">0:07</span>
+          <span class="voice-card__line" data-words>“Three items: the client proposal, a suspiciously empty calendar, and your ongoing refusal to take lunch.”</span>
+          <span class="voice-card__bar" aria-hidden="true"></span>
+        </button></li>
+        <li data-reveal style="--i:2"><button class="voice-card" type="button" data-voice="checkin" data-src="assets/voice/checkin.mp3" aria-pressed="false">
+          <span class="voice-card__play" aria-hidden="true"><svg class="i-play"><use href="#i-play"/></svg><svg class="i-pause"><use href="#i-pause"/></svg></span>
+          <span class="voice-card__label">Care</span><span class="voice-card__dur">0:04</span>
+          <span class="voice-card__line" data-words>“Welcome back. Before anything else — how are you, really?”</span>
+          <span class="voice-card__bar" aria-hidden="true"></span>
+        </button></li>
+        <li data-reveal style="--i:3"><button class="voice-card" type="button" data-voice="growdone" data-src="assets/voice/growdone.mp3" aria-pressed="false">
+          <span class="voice-card__play" aria-hidden="true"><svg class="i-play"><use href="#i-play"/></svg><svg class="i-pause"><use href="#i-pause"/></svg></span>
+          <span class="voice-card__label">Memory</span><span class="voice-card__dur">0:04</span>
+          <span class="voice-card__line" data-words>“Threaded in. Your map remembers — and so do I.”</span>
+          <span class="voice-card__bar" aria-hidden="true"></span>
+        </button></li>
+      </ul>
+      <p class="micro voice__foot">Sound plays only when you press play.</p>
+    </div>
+  </section>
+
+  <section class="section try" aria-labelledby="try-title">
+    <div class="wrap">
+      <div class="try__head">
+        <div>
+          <p class="eyebrow" data-reveal><span class="tag tag--live">Live now</span></p>
+          <h2 class="h2" id="try-title" data-reveal="lines"><span class="ln"><span>Meet her</span></span><span class="ln" style="--i:1"><span><em>in your browser.</em></span></span></h2>
+          <p class="lead" data-reveal style="--i:2">The demo is VERA in a sandbox, with no access to your files or accounts. Say hello, ask her anything, or let her map your second brain in about two minutes.</p>
+        </div>
+        <div class="actions" data-reveal style="--i:3"><a class="btn btn--primary" href="reactor.html?demo=1">Talk to her <svg class="arrow" aria-hidden="true"><use href="#i-ne"/></svg></a></div>
+      </div>
+      <div class="screens">
+        <a class="screen screen--reactor" href="reactor.html?demo=1" data-reveal>
+          <span class="screen__frame brackets"><img src="assets/img/demo-reactor.webp" width="1440" height="900" loading="lazy" decoding="async" alt="The live demo: VERA’s glowing ring, standing by, with a box to type or speak."></span>
+          <span class="screen__cap"><strong>Talk to her</strong><span>The live demo</span></span>
+        </a>
+        <a class="screen screen--map" href="map.html?demo=1" data-reveal style="--i:1">
+          <span class="screen__frame brackets"><img src="assets/img/demo-map.webp" width="1440" height="900" loading="lazy" decoding="async" alt="The brain map: a constellation of sample ideas and projects, connected by thin lines."></span>
+          <span class="screen__cap"><strong>Map your second brain</strong><span>About two minutes</span></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section guardian" aria-labelledby="guardian-title">
+    <div class="wrap grid guardian__grid">
+      <div class="guardian__photo">
+        <figure class="shot" data-reveal>
+          <img src="assets/img/guardian-kitchen-1440.webp" srcset="assets/img/guardian-kitchen-640.webp 640w, assets/img/guardian-kitchen-960.webp 960w, assets/img/guardian-kitchen-1440.webp 1440w, assets/img/guardian-kitchen-2048.webp 2048w" sizes="(min-width: 1320px) 715px, (min-width: 901px) 56vw, 92vw" width="2048" height="1360" loading="lazy" decoding="async" alt="A sunny family kitchen: a cordless phone, a teacup, reading glasses, garden flowers, and children’s drawings on the fridge.">
+        </figure>
+        <div class="note-card" data-reveal style="--i:2">
+          <div class="ui-card brackets">
+            <div class="ui-card__top"><span class="ui-ring"></span><span class="label">Sunday note</span><span class="label">Concept</span></div>
+            <p class="ui-card__main">Mom sounded bright this week. Three calls with her, mostly about the garden. One call blocked: it claimed to be Social Security and asked for gift cards.</p>
+          </div>
+        </div>
+      </div>
+      <div class="guardian__copy">
+        <p class="eyebrow" data-reveal><span class="tag tag--build">In build</span>The Guardian Line</p>
+        <h2 class="h2" id="guardian-title" data-reveal="lines"><span class="ln"><span>A kind voice for Mom.</span></span><span class="ln" style="--i:1"><span><em>A <span class="nowrap">heads-up</span> for you.</em></span></span></h2>
+        <div class="prose" data-reveal style="--i:2">
+          <p>We’re building VERA into an ordinary phone number. Mom won’t install anything. The number is the whole setup.</p>
+          <p>Family calls will ring straight through. Strangers will meet VERA first. If a caller pushes gift cards, secrecy or urgency, she’ll say so out loud and text you. And on a quiet afternoon, Mom will be able to call her just to chat.</p>
+        </div>
+        <div class="actions" data-reveal style="--i:3"><a class="more" href="guardian.html">Follow the Guardian Line <svg aria-hidden="true"><use href="#i-e"/></svg></a></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section memory" aria-labelledby="memory-title">
+    <div class="wrap grid memory__grid">
+      <div class="memory__copy">
+        <p class="eyebrow" data-reveal><span class="tag tag--founder">Founder build</span>Privacy</p>
+        <h2 class="h2" id="memory-title" data-reveal="lines"><span class="ln"><span>Her memory lives</span></span><span class="ln" style="--i:1"><span><em>with you.</em></span></span></h2>
+        <p class="lead" data-reveal style="--i:2">On your PC, what VERA remembers is kept in plain files on your own computer, not in our cloud.</p>
+        <dl class="facts" data-reveal style="--i:3">
+          <div><dt>Where it lives</dt><dd>On your PC, in files you can open.</dd></div>
+          <div><dt>What she sends</dt><dd>To reply, the conversation and the memories it needs go to the AI model that writes her words. While she’s watching along, a glance at your screen goes too.</dd></div>
+          <div><dt>Your say</dt><dd>Read, edit or erase anything, any time.</dd></div>
+        </dl>
+        <div data-reveal style="--i:4"><a class="more" href="privacy.html">Read the privacy page <svg aria-hidden="true"><use href="#i-e"/></svg></a></div>
+      </div>
+      <div class="memory__file" data-reveal style="--i:2">
+        <div class="file" role="img" aria-label="An example memory file named 2026-09-27-film-night: Sunday, 9:40 pm. Watched a heist film together and called the twist twenty minutes early. Interview on Tuesday morning, dreading it. Follow up: ask how the interview went.">
+          <div class="file__bar"><span class="file__name">memory / episodes / 2026-09-27-film-night.md</span><span class="tag tag--example">Example</span></div>
+          <div class="file__body">
+            <p class="when">Sunday · 9:40 pm</p>
+            <h3>Film night</h3>
+            <p>Watched a heist film together. Called the twist twenty minutes early and has been smug about it since.</p>
+            <p>Interview on Tuesday morning. Dreading it, but prepared.</p>
+            <p class="follow">Follow up: ask how the interview went.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section faq" id="questions" aria-labelledby="faq-title">
+    <div class="wrap grid faq__grid">
+      <div class="faq__intro">
+        <h2 class="h2" id="faq-title">Fair <em>questions.</em></h2>
+        <p class="prose-p">Something else on your mind? Write to <a href="mailto:vera@veraisreal.com">vera@veraisreal.com</a>.</p>
+      </div>
+      <div class="faq__list">
+        <details><summary>Is VERA a real person?</summary><div class="prose"><p>No. VERA is an AI. The “real” in our name means she’s working software you can talk to today, not a concept video.</p></div></details>
+        <details><summary>What can the free demo do?</summary><div class="prose"><p>Talk with you by voice or text, build a brain map from a two-minute chat, and run a short adventure. It can’t open your files or your accounts.</p></div></details>
+        <details><summary>What does she run on?</summary><div class="prose"><p>In the demo, Anthropic’s Claude writes her words, and Microsoft and Cloudflare speech services give them a voice. Her personality is VERA’s own. What she remembers about you is yours, and <a href="privacy.html">the privacy page</a> shows where it goes.</p></div></details>
+        <details><summary>Where does my conversation go?</summary><div class="prose"><p>To reply, the demo sends your messages through our Cloudflare service to Anthropic. Your brain map is saved in your browser. <a href="privacy.html">The privacy page</a> has every detail, in plain words.</p></div></details>
+        <details><summary>Does she work on a Mac or an iPhone?</summary><div class="prose"><p>The demo runs in any modern browser, including Safari. On iPhone, tap the mic to talk, because iPhone browsers don’t allow a spoken wake word. The full VERA is Windows-only for now.</p></div></details>
+        <details><summary>What will it cost?</summary><div class="prose"><p>The demo is free. Pricing for the full version hasn’t been set yet, and people on the founders list will hear first. The Windows build will also need an account with an AI provider; your invite will explain any costs.</p></div></details>
+        <details><summary>Is the Guardian Line an emergency service?</summary><div class="prose"><p>No. It’s being built to help spot scams and keep family in the loop. It won’t replace 911, a doctor or professional care.</p></div></details>
+        <details><summary>Who makes VERA?</summary><div class="prose"><p>Metadrip Solutions, a small independent studio. Say hello at <a href="mailto:vera@veraisreal.com">vera@veraisreal.com</a>.</p></div></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="finale" aria-labelledby="finale-title" data-finale>
+    <div class="finale__bg" aria-hidden="true">
+      <img src="assets/img/apartment-night-1440.webp" srcset="assets/img/apartment-night-960.webp 960w, assets/img/apartment-night-1440.webp 1440w, assets/img/apartment-night-1920.webp 1920w, assets/img/apartment-night-2400.webp 2400w" sizes="100vw" width="1920" height="1086" loading="lazy" decoding="async" alt="">
+    </div>
+    <div class="wrap finale__inner">
+      <h2 class="display" id="finale-title" data-reveal="lines"><span class="ln"><span>She’s live.</span></span><span class="ln" style="--i:1"><span><em>Say hello.</em></span></span></h2>
+      <div class="actions" data-reveal style="--i:2"><a class="btn btn--primary" href="reactor.html?demo=1">Talk to her <svg class="arrow" aria-hidden="true"><use href="#i-ne"/></svg></a></div>
+      <div class="join join--quiet" data-reveal style="--i:3">
+        <form class="waitlist" data-waitlist data-endpoint="https://vera-brain.bluevvindz.workers.dev/join" action="mailto:vera@veraisreal.com?subject=Founders%20list" method="post" enctype="text/plain" novalidate>
+  <label class="waitlist__label" for="wl-email">Join the founders list</label>
+  <div class="waitlist__row">
+    <input id="wl-email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" required aria-describedby="wl-note wl-status">
+    <button class="btn btn--primary" type="submit">Save my place</button>
   </div>
-</section>
+  <p class="waitlist__note" id="wl-note">Early-access news only. We keep your email and the date you joined. <a href="privacy.html#founders-list">How we handle it</a></p>
+  <p class="waitlist__status" id="wl-status" role="status" aria-live="polite"></p>
+</form>
+      </div>
+    </div>
+  </section>
 
-<section id="guardian">
-  <div class="kicker">why she exists</div>
-  <h2>The Guardian Line</h2>
-  <p class="lead">Elder phone scams take billions a year, one trusting
-    &ldquo;hello&rdquo; at a time. The Guardian Line is VERA as a phone
-    number: strangers get screened, family passes straight through, and when
-    a call starts pushing gift cards and urgency, she says so &mdash; and
-    texts you. Your mom just gets a kind voice who also likes to chat.</p>
-  <p class="lead">It&rsquo;s in build. Leave an email and be first to know.</p>
-  <div id="join-row">
-    <input id="join-email" type="email" placeholder="you@example.com" autocomplete="email">
-    <button id="join-btn" type="button">Keep me posted</button>
+</main>
+<footer class="footer">
+  <div class="wrap grid footer__grid">
+    <div class="footer__brand">
+      <a class="brand" href="./" aria-label="V.E.R.A. home">
+        <svg aria-hidden="true"><use href="#i-mark"/></svg>
+        <span class="brand__word" aria-hidden="true">V<span class="brand__dot">.</span>E<span class="brand__dot">.</span>R<span class="brand__dot">.</span>A<span class="brand__dot">.</span><sup>™</sup></span>
+      </a>
+      <p>Good company, remembered.</p>
+    </div>
+    <div class="footer__cols">
+      <nav class="footer__col" aria-labelledby="f-meet">
+        <h2 id="f-meet">Meet her</h2>
+        <ul>
+          <li><a href="reactor.html?demo=1">Talk to her</a></li>
+          <li><a href="map.html?demo=1">Brain map</a></li>
+          <li><a href="adventure.html">Adventure mode</a></li>
+        </ul>
+      </nav>
+      <nav class="footer__col" aria-labelledby="f-vera">
+        <h2 id="f-vera">VERA</h2>
+        <ul>
+          <li><a href="download.html">For Windows</a></li>
+          <li><a href="guardian.html">Guardian Line</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+        </ul>
+      </nav>
+      <div class="footer__col">
+        <h2>Say hello</h2>
+        <ul>
+          <li><a href="mailto:vera@veraisreal.com">vera@veraisreal.com</a></li>
+          <li><span class="micro">Metadrip Solutions</span></li>
+        </ul>
+      </div>
+    </div>
   </div>
-  <div id="join-note">One email when the line opens. Nothing else, ever.</div>
-</section>
-
-<section>
-  <div class="kicker">the honest print</div>
-  <div class="honest">
-    <p><b>The demo is the real interface running sandboxed</b> &mdash; a live
-    AI in real time, no tools, no private data, capabilities deliberately
-    limited. The production system runs privately with the full set: files,
-    web, memory, a wake word, and a nightly habit of improving her own code.</p>
-    <p style="margin-top:10px">Want to see her think? <a href="map.html?demo=1">Watch
-    her build a second brain from a two-minute conversation &rarr;</a></p>
+  <div class="wrap footer__base">
+    <p>© 2026 Metadrip Solutions. V.E.R.A.™ is a trademark of Metadrip Solutions.</p>
+    <p>Images are AI-generated illustrations.</p>
+    <a href="#main">Back to top <span aria-hidden="true">↑</span></a>
   </div>
-</section>
-
-<footer>
-  <span class="hello">say hello: <a href="mailto:vera@veraisreal.com">vera@veraisreal.com</a></span>
-  <a href="reactor.html?demo=1">live demo</a> &middot;
-  <a href="map.html?demo=1">brain map</a> &middot;
-  <a href="testers.html">for testers</a> &middot;
-  <span>built by Kevin &middot; Metadrip Solutions</span>
 </footer>
-
-<script>
-/* Her ring — awake to the visitor. Pure canvas, no libraries: particles
-   breathe on an orbit and lean toward the pointer, the way she turns toward
-   a voice. Honest by design: no LISTENING label — the landing page has no
-   ears, so it never claims any. */
-(function () {
-  var c = document.getElementById('ring');
-  var x = c.getContext('2d');
-  var W, H, CX, CY, R;
-  var px = null, py = null, warmth = 0;
-  function size() {
-    var d = Math.min(window.devicePixelRatio || 1, 2);
-    W = c.clientWidth; H = c.clientHeight;
-    c.width = W * d; c.height = H * d;
-    x.setTransform(d, 0, 0, d, 0, 0);
-    CX = W / 2; CY = H / 2;
-    R = Math.min(W, H) * 0.30;
-  }
-  size(); addEventListener('resize', size);
-  addEventListener('pointermove', function (e) {
-    var r = c.getBoundingClientRect();
-    px = e.clientX - r.left; py = e.clientY - r.top;
-  });
-  addEventListener('pointerdown', function () { warmth = 1; });
-  var N = 130, P = [];
-  for (var i = 0; i < N; i++) P.push({
-    a: Math.random() * Math.PI * 2,
-    r: 0.82 + Math.random() * 0.36,
-    s: 0.0006 + Math.random() * 0.0018,
-    w: 0.6 + Math.random() * 1.6,
-  });
-  var t = 0;
-  (function frame() {
-    t += 1;
-    x.clearRect(0, 0, W, H);
-    var breath = 1 + Math.sin(t * 0.011) * 0.035;
-    /* she notices the pointer: a lean, not a chase */
-    var lx = 0, ly = 0, near = 0;
-    if (px !== null) {
-      var dx = px - CX, dy = py - CY, d = Math.hypot(dx, dy);
-      near = Math.max(0, 1 - d / (R * 3.2));
-      lx = (dx / (d || 1)) * near * R * 0.16;
-      ly = (dy / (d || 1)) * near * R * 0.16;
-    }
-    warmth = Math.max(near, warmth * 0.985);
-    var glow = 0.5 + warmth * 0.5;
-    x.save();
-    x.translate(CX + lx, CY + ly);
-    /* outer whisper ring */
-    x.beginPath(); x.arc(0, 0, R * 1.24 * breath, 0, 7);
-    x.strokeStyle = 'rgba(63,217,255,' + (0.10 + warmth * 0.10) + ')';
-    x.lineWidth = 1; x.stroke();
-    /* the body: orbiting particles */
-    for (var i2 = 0; i2 < N; i2++) {
-      var p = P[i2];
-      p.a += p.s * (1 + warmth * 0.9);
-      var rr = R * p.r * breath;
-      var ax2 = Math.cos(p.a) * rr, ay2 = Math.sin(p.a) * rr * 0.98;
-      var al = (0.20 + 0.45 * Math.abs(Math.sin(p.a * 3 + t * 0.02))) * glow;
-      x.beginPath(); x.arc(ax2, ay2, p.w, 0, 7);
-      x.fillStyle = 'rgba(63,217,255,' + al.toFixed(3) + ')';
-      x.fill();
-    }
-    /* the core */
-    var g = x.createRadialGradient(0, 0, 0, 0, 0, R * 0.5);
-    g.addColorStop(0, 'rgba(120,220,255,' + (0.20 + warmth * 0.25) + ')');
-    g.addColorStop(1, 'rgba(63,217,255,0)');
-    x.fillStyle = g;
-    x.beginPath(); x.arc(0, 0, R * 0.5, 0, 7); x.fill();
-    x.restore();
-    requestAnimationFrame(frame);
-  })();
-})();
-
-/* Waitlist — the worker's /join endpoint (bounded, honest states). */
-(function () {
-  var API = 'https://vera-brain.bluevvindz.workers.dev';
-  var input = document.getElementById('join-email');
-  var btn = document.getElementById('join-btn');
-  var note = document.getElementById('join-note');
-  btn.onclick = function () {
-    var v = (input.value || '').trim();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) {
-      note.textContent = 'That email doesn\u2019t look complete \u2014 one more try?';
-      return;
-    }
-    btn.disabled = true; btn.textContent = '\u2026';
-    var ctrl = ('timeout' in AbortSignal) ? null : new AbortController();
-    var tm = ctrl ? setTimeout(function () { ctrl.abort(); }, 10000) : 0;
-    fetch(API + '/join', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: v }),
-      signal: ctrl ? ctrl.signal : AbortSignal.timeout(10000),
-    }).then(function (r) {
-      if (!r.ok) throw 0;
-      note.textContent = 'Done \u2014 she\u2019ll write when the line opens.';
-      input.value = ''; btn.textContent = 'You\u2019re on the list';
-    }).catch(function () {
-      btn.disabled = false; btn.textContent = 'Keep me posted';
-      note.textContent = 'The wire hiccuped \u2014 try once more, or email vera@veraisreal.com.';
-    }).finally(function () { if (tm) clearTimeout(tm); });
-  };
-})();
-</script>
 </body>
 </html>

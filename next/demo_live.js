@@ -1,5 +1,5 @@
 /* VERA public demo — live-chat layer.
-   Loaded ONLY in the demo build (never in Kevin's personal HUD).
+   Loaded ONLY in the demo build (never in the owner's personal HUD).
    If window.DEMO_API is set (demo_config.js), visitors talk to the sandboxed
    demo brain; browser SpeechRecognition + speechSynthesis provide free voice.
    Without an API, typing still works — VERA explains he's in rehearsal. */
@@ -47,7 +47,7 @@
       const rows = [];
       const line = (k, v) => rows.push(k.padEnd(13) + ' ' + v);
       try {
-        // LIVE — re-rendered every 600ms. The action lines lead: Kevin read a
+        // LIVE — re-rendered every 600ms. The action lines lead: the owner read a
         // frozen snapshot mid-capture and we couldn't tell stale from true.
         line('mic error', window.__micErr
           ? window.__micErr + (window.__micErr === 'NotAllowedError' ? '  <-- BLOCKED: allow mic in Chrome settings'
@@ -778,7 +778,7 @@
   // Default (off) = today's behaviour: the mic track is STOPPED after every
   // listen, which releases iOS's audio session (that's what keeps her voice
   // out of the earpiece) but makes the next listen re-acquire — and iPhone
-  // Chrome can re-prompt on every acquisition, which is the popup Kevin sees
+  // Chrome can re-prompt on every acquisition, which is the popup the owner sees
   // every few seconds. On (=1) = keep the granted track alive but DISABLED
   // between listens: permission persists, no new prompt, and the session is
   // still released by closing the AudioContext below.
@@ -958,7 +958,7 @@
       rec.frames++;
       const d = e.inputBuffer.getChannelData(0);
       // Peak level, surfaced in the diagnostic: silence vs speech is then a
-      // number Kevin can read off his phone instead of a feeling.
+      // number the owner can read off his phone instead of a feeling.
       let pk = 0;
       for (let i = 0; i < d.length; i += 16) { const v = d[i] < 0 ? -d[i] : d[i]; if (v > pk) pk = v; }
       if (pk > (window.__micPeak || 0)) window.__micPeak = pk;
@@ -1027,7 +1027,7 @@
     let total = 0; for (const c of r.chunks) total += c.length;
     // Manual captures used to skip the energy gate entirely (the auto-only
     // `spoke` check) — a near-silent WAV went to Whisper, which hallucinates
-    // a tiny transcript like "you" from silence. That WAS Kevin's symptom
+    // a tiny transcript like "you" from silence. That WAS the owner's symptom
     // (Codex finding 2). Silence is now rejected LOCALLY for both kinds:
     // no upload, an honest message, the typed draft preserved.
     if ((r.auto && !r.spoke) || total < r.rate * 0.4 || r.peak < 0.006) {
@@ -1323,7 +1323,7 @@
       // silently demote desktop Chrome — which has working hands-free
       // SpeechRecognition — to the tap-to-start / tap-to-send recorder, adding
       // a silence wait, an upload and a server round-trip to every turn.
-      // Kevin: "tap to send doesn't need to be on PC, the active listening was
+      // the owner: "tap to send doesn't need to be on PC, the active listening was
       // working." Platform-honest (lesson 11): each device uses the best ear
       // it actually has — SR where it exists, server recorder where it doesn't.
       if (h && h.ok && h.stt && !SR) { earsServer = true; mic.onclick = () => recToggle(false); }
@@ -1558,7 +1558,7 @@
     if (window.VERA_SEED && window.VERA_ENTRY.fresh && API) {
       // RETURNING VISITOR: straight to the juice — their map, growing. The
       // montage plays, then she walks them to their second brain to add to
-      // it live. (Kevin, 2026-07-28: no detour questions; the value IS the
+      // it live. (the owner, 2026-07-28: no detour questions; the value IS the
       // map. The care layer lives in the production app, not the demo.)
       takeover();
       const grow = () => walkTo('map.html?demo=1&grow=1');
@@ -1611,7 +1611,7 @@
     // Arm AFTER the entry branches, as it always did. Hoisting it above them
     // (tried 2026-08-07) arms the hotword under the intro reel: the ear parks
     // and resumes between every line and the mic clicks audibly each time —
-    // Kevin heard it as "a beep after every sentence". Reverted; the
+    // the owner heard it as "a beep after every sentence". Reverted; the
     // first-visit hotword gap is banked in hud/GAUNTLET-REMAINDER.md instead.
     if (wake) wake.arm();
     if (window.VERA_ENTRY.fresh) speakAloud("Welcome. I'm Vera — say my name any time you need me.");
