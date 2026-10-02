@@ -27,9 +27,9 @@
 <link rel="preload" href="assets/fonts/newsreader-roman-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/newsreader-italic-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/hanken-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/site.css?v=036a914f">
+<link rel="stylesheet" href="assets/css/site.css?v=ac71ad60">
 <script>document.documentElement.classList.add('js');setTimeout(function(){if(!window.__veraReady)document.documentElement.classList.remove('js')},2500)</script>
-<script src="assets/js/site.js?v=036a914f" defer></script>
+<script src="assets/js/site.js?v=ac71ad60" defer></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"Metadrip Solutions","url":"https://veraisreal.com/","email":"vera@veraisreal.com","brand":{"@type":"Brand","name":"V.E.R.A."}},{"@type":"WebSite","name":"VERA","url":"https://veraisreal.com/"}]}</script>
 </head>
 <body class="page-home">
@@ -237,10 +237,10 @@
           <span class="voice-card__line" data-words>“Welcome back. Before anything else — how are you, really?”</span>
           <span class="voice-card__bar" aria-hidden="true"></span>
         </button></li>
-        <li data-reveal style="--i:3"><button class="voice-card" type="button" data-voice="growdone" data-src="assets/voice/growdone.mp3" aria-pressed="false">
+        <li data-reveal style="--i:3"><button class="voice-card" type="button" data-voice="reel2" data-src="assets/voice/reel2.mp3" aria-pressed="false">
           <span class="voice-card__play" aria-hidden="true"><svg class="i-play"><use href="#i-play"/></svg><svg class="i-pause"><use href="#i-pause"/></svg></span>
-          <span class="voice-card__label">Memory</span><span class="voice-card__dur">0:04</span>
-          <span class="voice-card__line" data-words>“Threaded in. Your map remembers — and so do I.”</span>
+          <span class="voice-card__label">Getting it done</span><span class="voice-card__dur">0:07</span>
+          <span class="voice-card__line" data-words>“On the wires now — the short answer: three contenders, one clear value pick. Card’s on your display.”</span>
           <span class="voice-card__bar" aria-hidden="true"></span>
         </button></li>
       </ul>
@@ -254,7 +254,7 @@
         <div>
           <p class="eyebrow" data-reveal><span class="tag tag--live">Live now</span></p>
           <h2 class="h2" id="try-title" data-reveal="lines"><span class="ln"><span>Meet her</span></span><span class="ln" style="--i:1"><span><em>in your browser.</em></span></span></h2>
-          <p class="lead" data-reveal style="--i:2">The demo is VERA in a sandbox, with no access to your files or accounts. Say hello, ask her anything, or let her map your second brain in about two minutes.</p>
+          <p class="lead" data-reveal style="--i:2">The demo is VERA in a sandbox, with no access to your files or accounts. Here’s what’s worth trying first.</p>
         </div>
         <div class="actions" data-reveal style="--i:3"><a class="btn btn--primary" href="reactor.html?demo=1">Talk to her <svg class="arrow" aria-hidden="true"><use href="#i-ne"/></svg></a></div>
       </div>
@@ -263,10 +263,26 @@
           <span class="screen__frame brackets"><img src="assets/img/demo-reactor.webp" width="1440" height="900" loading="lazy" decoding="async" alt="The live demo: VERA’s glowing ring, standing by, with a box to type or speak."></span>
           <span class="screen__cap"><strong>Talk to her</strong><span>The live demo</span></span>
         </a>
-        <a class="screen screen--map" href="map.html?demo=1" data-reveal style="--i:1">
-          <span class="screen__frame brackets"><img src="assets/img/demo-map.webp" width="1440" height="900" loading="lazy" decoding="async" alt="The brain map: a constellation of sample ideas and projects, connected by thin lines."></span>
-          <span class="screen__cap"><strong>Map your second brain</strong><span>About two minutes</span></span>
-        </a>
+        <ol class="tries" role="list">
+          <li data-reveal style="--i:1"><a class="try-item" href="reactor.html?demo=1">
+            <span class="label">Think it through</span>
+            <span class="try-item__say">“Help me plan a calm week. I’ve got three deadlines and a birthday.”</span>
+            <span class="try-item__note">She reasons, drafts and plans it out with you, by voice or text.</span>
+            <svg aria-hidden="true"><use href="#i-ne"/></svg>
+          </a></li>
+          <li data-reveal style="--i:2"><a class="try-item" href="reactor.html?demo=1">
+            <span class="label">Check a message</span>
+            <span class="try-item__say">“I got a text saying my package is held for a $1.99 fee. Is that real?”</span>
+            <span class="try-item__note">Paste it in, or let her glance at your screen. She names the warning signs and tells you what to do next.</span>
+            <svg aria-hidden="true"><use href="#i-ne"/></svg>
+          </a></li>
+          <li data-reveal style="--i:3"><a class="try-item" href="adventure.html">
+            <span class="label">Play a story</span>
+            <span class="try-item__say">“Run me a mystery on a night train.”</span>
+            <span class="try-item__note">Adventure mode: she narrates in her own voice, and you decide what happens.</span>
+            <svg aria-hidden="true"><use href="#i-ne"/></svg>
+          </a></li>
+        </ol>
       </div>
     </div>
   </section>
@@ -332,9 +348,9 @@
       </div>
       <div class="faq__list">
         <details><summary>Is VERA a real person?</summary><div class="prose"><p>No. VERA is an AI. The “real” in our name means she’s working software you can talk to today, not a concept video.</p></div></details>
-        <details><summary>What can the free demo do?</summary><div class="prose"><p>Talk with you by voice or text, build a brain map from a two-minute chat, and run a short adventure. It can’t open your files or your accounts.</p></div></details>
+        <details><summary>What can the free demo do?</summary><div class="prose"><p>Talk things through by voice or text, check a suspicious message for scam warning signs, and run a short adventure story. It can’t open your files or your accounts.</p></div></details>
         <details><summary>What does she run on?</summary><div class="prose"><p>In the demo, Anthropic’s Claude writes her words, and Microsoft and Cloudflare speech services give them a voice. Her personality is VERA’s own. What she remembers about you is yours, and <a href="privacy.html">the privacy page</a> shows where it goes.</p></div></details>
-        <details><summary>Where does my conversation go?</summary><div class="prose"><p>To reply, the demo sends your messages through our Cloudflare service to Anthropic. Your brain map is saved in your browser. <a href="privacy.html">The privacy page</a> has every detail, in plain words.</p></div></details>
+        <details><summary>Where does my conversation go?</summary><div class="prose"><p>To reply, the demo sends your messages through our Cloudflare service to Anthropic. Anything the demo saves about you stays in your browser. <a href="privacy.html">The privacy page</a> has every detail, in plain words.</p></div></details>
         <details><summary>Does she work on a Mac or an iPhone?</summary><div class="prose"><p>The demo runs in any modern browser, including Safari. On iPhone, tap the mic to talk, because iPhone browsers don’t allow a spoken wake word. The full VERA is Windows-only for now.</p></div></details>
         <details><summary>What will it cost?</summary><div class="prose"><p>The demo is free. Pricing for the full version hasn’t been set yet, and people on the founders list will hear first. The Windows build will also need an account with an AI provider; your invite will explain any costs.</p></div></details>
         <details><summary>Is the Guardian Line an emergency service?</summary><div class="prose"><p>No. It’s being built to help spot scams and keep family in the loop. It won’t replace 911, a doctor or professional care.</p></div></details>
@@ -379,7 +395,6 @@
         <h2 id="f-meet">Meet her</h2>
         <ul>
           <li><a href="reactor.html?demo=1">Talk to her</a></li>
-          <li><a href="map.html?demo=1">Brain map</a></li>
           <li><a href="adventure.html">Adventure mode</a></li>
         </ul>
       </nav>

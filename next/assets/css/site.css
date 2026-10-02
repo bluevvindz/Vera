@@ -409,7 +409,14 @@ a.rail__item:hover .rail__link svg { transform: translateX(3px); }
 .screens { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(16px, 2.2vw, 32px); row-gap: 28px; }
 .screen { position: relative; display: grid; gap: 16px; text-decoration: none; }
 .screen--reactor { grid-column: 1 / span 7; }
-.screen--map { grid-column: 8 / span 5; align-self: end; }
+.tries { grid-column: 8 / span 5; align-self: center; list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.try-item { position: relative; display: grid; gap: 8px; padding: 20px 48px 22px 22px; border-radius: 14px; border: 1px solid var(--line); background: rgba(237, 232, 223, 0.025); text-decoration: none; transition: border-color 0.3s var(--ease), background-color 0.3s var(--ease), transform 0.3s var(--ease); }
+.try-item:hover { border-color: var(--her-40); background: var(--her-10); transform: translateY(-2px); }
+.try-item .label { color: var(--her); }
+.try-item__say { color: var(--text); font-size: 1.0625rem; line-height: 1.45; }
+.try-item__note { color: var(--text-2); font-size: 0.9375rem; line-height: 1.5; }
+.try-item svg { position: absolute; top: 20px; right: 20px; width: 14px; height: 14px; color: var(--text-3); transition: transform 0.35s var(--ease), color 0.3s; }
+.try-item:hover svg { transform: translate(3px, -3px); color: var(--her); }
 .screen__frame { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid rgba(127, 219, 234, 0.18); background: var(--ink-1); transition: border-color 0.4s var(--ease), transform 0.5s var(--ease); }
 .screen__frame img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
 .screen:hover .screen__frame { border-color: var(--her-40); transform: translateY(-3px); }
@@ -418,7 +425,7 @@ a.rail__item:hover .rail__link svg { transform: translateX(3px); }
 .screen__cap span { color: var(--text-3); font-size: 0.9375rem; }
 @media (max-width: 900px) {
   .try__head > div, .try__head > .actions { grid-column: 1 / -1; justify-content: flex-start; margin-top: 8px; }
-  .screen--reactor, .screen--map { grid-column: 1 / -1; }
+  .screen--reactor, .tries { grid-column: 1 / -1; }
 }
 
 /* ---------- Guardian teaser ---------- */
