@@ -522,7 +522,7 @@ a.rail__item:hover .rail__link svg { transform: translateX(3px); }
 .footer__base a { color: var(--text-2); text-decoration: none; }
 .footer__base a:hover { color: var(--text); }
 @media (max-width: 900px) { .footer__brand, .footer__cols { grid-column: 1 / -1; } }
-@media (max-width: 520px) { .footer__cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .footer__cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } .footer__cols > :last-child { grid-column: 1 / -1; } }
 
 /* ---------- Subpages ---------- */
 .page-hero { position: relative; padding-top: calc(var(--header-h) + clamp(56px, 9vw, 128px)); padding-bottom: clamp(64px, 8vw, 112px); isolation: isolate; }
