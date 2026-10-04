@@ -21,7 +21,7 @@
   // phones, tablets and narrow windows. Hidden, not moved: no layout shift.
   const bootCss = document.createElement('style');
   bootCss.textContent =
-    '.boot-on #demo-talk,.boot-on #nav-map,.boot-on #talk-chip{visibility:hidden !important}';
+    '.boot-on #demo-talk,.boot-on #nav-space,.boot-on #talk-chip{visibility:hidden !important}';
   document.head.appendChild(bootCss);
 
   /* ---- the score ---- */

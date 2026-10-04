@@ -29,7 +29,7 @@
     // hash, so any returning visitor whose Seed hashed into the warm range saw
     // the entire interface — ring, text, nodes, chrome — rendered ORANGE, and
     // no palette fix could ever reach it (the filter is applied after paint).
-    // Kevin's own Seed hashed there, which is why he saw orange for weeks
+    // the owner's own Seed hashed there, which is why he saw orange for weeks
     // while fresh visitors and every screenshot showed cyan. Personalisation
     // must never be able to leave the brand: a narrow cool band only.
     const tint = (hue % 51) - 25;                      // -25°..+25°

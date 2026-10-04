@@ -31,7 +31,21 @@
     cursor: default;
     user-select: none;
   }
-  #reactor { position: fixed; inset: 0; width: 100%; height: 100%; }
+  #reactor {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    pointer-events: none;  /* the full-screen canvas is art, never a brake */
+  }
+  #reactor-brake {
+    position: fixed; left: 50%; top: 44%; transform: translate(-50%, -50%);
+    width: 42vmin; height: 42vmin; padding: 0;
+    border: 0; border-radius: 50%; background: transparent;
+    pointer-events: none; cursor: default; z-index: 2;
+  }
+  #reactor-brake.armed { pointer-events: auto; cursor: pointer; }
+  #reactor-brake:focus-visible {
+    outline: 2px solid rgba(189, 239, 255, 0.82);
+    outline-offset: 5px;
+  }
 
   .corner {
     position: fixed;
@@ -54,6 +68,63 @@
     border: 1px solid rgba(63, 217, 255, 0.55); border-radius: 3px;
     color: var(--cyan); font-size: 10px; letter-spacing: 0.28em;
     text-shadow: 0 0 10px rgba(63, 217, 255, 0.4);
+  }
+  #reactor-vitals {
+    position: relative; display: none; width: 232px; margin-top: 10px; margin-left: auto;
+    padding: 10px 11px 9px; border: 1px solid rgba(183, 166, 255, 0.34);
+    border-radius: 6px; background:
+      linear-gradient(135deg, rgba(63, 217, 255, 0.055), transparent 42%),
+      linear-gradient(315deg, rgba(183, 166, 255, 0.08), transparent 54%),
+      rgba(4, 12, 22, 0.88);
+    box-shadow: inset 0 0 24px rgba(63, 217, 255, 0.025), 0 8px 28px rgba(0, 0, 0, 0.24);
+    letter-spacing: normal; text-align: left;
+  }
+  #reactor-vitals::before, #reactor-vitals::after {
+    content: ''; position: absolute; width: 14px; height: 14px; pointer-events: none;
+  }
+  #reactor-vitals::before {
+    top: -1px; left: -1px; border-top: 1px solid var(--cyan); border-left: 1px solid var(--cyan);
+  }
+  #reactor-vitals::after {
+    right: -1px; bottom: -1px; border-right: 1px solid #b7a6ff; border-bottom: 1px solid #b7a6ff;
+  }
+  #reactor-vitals.on { display: block; }
+  .reactor-vitals-head {
+    display: flex; align-items: center; gap: 6px; color: rgba(224, 247, 255, 0.92);
+    font-size: 8px; font-weight: 600; letter-spacing: 0.18em;
+  }
+  .reactor-vitals-head { margin-bottom: 7px; }
+  .reactor-vitals-head::before {
+    content: ''; width: 6px; height: 6px; flex: 0 0 auto; transform: rotate(45deg);
+    border: 1px solid #b7a6ff; background: rgba(183, 166, 255, 0.18);
+    box-shadow: 0 0 8px rgba(183, 166, 255, 0.34);
+  }
+  .reactor-vitals-basis {
+    margin-left: auto; color: rgba(93, 235, 255, 0.68); font-size: 7px;
+    letter-spacing: 0.16em; white-space: nowrap;
+  }
+  .reactor-vital {
+    display: grid; grid-template-columns: 56px 1fr 46px; align-items: center;
+    gap: 7px; margin: 5px 0; font-size: 8px; color: rgba(204, 231, 241, 0.68);
+  }
+  .reactor-vital em { font-style: normal; letter-spacing: 0.12em; }
+  .reactor-vital output { text-align: right; color: #dff8ff; font-size: 8px; }
+  .reactor-vital i {
+    position: relative; display: block; overflow: hidden; height: 6px;
+    border: 1px solid rgba(127, 184, 204, 0.11); border-radius: 5px;
+    background:
+      repeating-linear-gradient(90deg, transparent 0 11px, rgba(127, 184, 204, 0.10) 11px 12px),
+      rgba(127, 184, 204, 0.08);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .reactor-vital i b {
+    position: relative; display: block; height: 100%; border-radius: inherit;
+    background: linear-gradient(90deg, #3fd9ff, #b7a6ff);
+    box-shadow: 0 0 9px rgba(63, 217, 255, 0.42);
+  }
+  .reactor-vital i b::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.34), transparent 48%);
   }
   #link-dot {
     display: inline-block; width: 7px; height: 7px; border-radius: 50%;
@@ -85,16 +156,114 @@
     margin-top: 8px; font-size: 11px; letter-spacing: 0.4em; text-indent: 0.4em;
     color: rgba(127, 184, 204, 0.5); text-transform: uppercase;
   }
+  #reflection-readiness {
+    margin-top: 6px;
+    color: rgba(142, 221, 255, 0.72);
+    font-size: 9px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+  /* THE LISTENING LAMP — the owner's one-glance mic truth, always present,
+     never color-only (it is text), announced politely to screen readers. */
+  #mic-lamp {
+    margin-top: 6px; font-size: 11.5px; letter-spacing: 0.3em; text-indent: 0.3em;
+    color: rgba(205, 224, 232, 0.78); text-transform: uppercase;
+  }
+  #input-readiness-bar {
+    width: min(310px, 58vw); height: 2px; margin: 12px auto 0;
+    overflow: hidden; border-radius: 999px;
+    background: rgba(63, 217, 255, 0.10);
+    box-shadow: inset 0 0 0 1px rgba(63, 217, 255, 0.09);
+    opacity: 0.9; transition: opacity 0.35s ease;
+  }
+  #input-readiness-bar::after {
+    content: ''; display: block; width: 42%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(63, 217, 255, 0.95), transparent);
+    box-shadow: 0 0 14px rgba(63, 217, 255, 0.72);
+    animation: input-readiness-scan 1.65s ease-in-out infinite;
+  }
+  body[data-input-phase="degraded"] #input-readiness-bar::after,
+  body[data-input-phase="unavailable"] #input-readiness-bar::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 178, 92, 0.92), transparent);
+    box-shadow: 0 0 14px rgba(255, 178, 92, 0.58);
+  }
+  body[data-input-phase="capturing"] #input-readiness-bar::after,
+  body[data-input-phase="followup_armed"] #input-readiness-bar::after {
+    width: 100%; animation: none;
+    background: linear-gradient(90deg, rgba(63, 217, 255, 0.18), rgba(63, 217, 255, 0.98), rgba(63, 217, 255, 0.18));
+    box-shadow: 0 0 16px rgba(63, 217, 255, 0.8);
+  }
+  body[data-input-ready="true"] #input-readiness-bar { opacity: 0; }
+  @keyframes input-readiness-scan {
+    from { transform: translateX(-115%); }
+    to { transform: translateX(345%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #input-readiness-bar::after { animation: none; width: 100%; opacity: 0.55; }
+  }
 
-  #nav-map {
-    position: fixed; top: 64px; left: 26px; z-index: 4;
+  #nav-space {
+    position: fixed; top: 64px; left: 26px; z-index: 8;
+    display: flex; align-items: stretch;
+  }
+  #nav-map, #nav-worlds-toggle {
     font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
     color: rgba(63, 217, 255, 0.75); text-decoration: none;
-    border: 1px solid rgba(63, 217, 255, 0.3); border-radius: 3px;
-    padding: 4px 12px; transition: all 0.3s;
+    border: 1px solid rgba(63, 217, 255, 0.3);
+    background: rgba(5, 11, 18, 0.2); padding: 4px 12px;
+    transition: color 0.3s, border-color 0.3s, background 0.3s;
   }
-  #nav-map:hover { color: var(--cyan); border-color: var(--cyan);
+  #nav-map { border-radius: 3px 0 0 3px; }
+  #nav-worlds-toggle {
+    margin-left: -1px; border-radius: 0 3px 3px 0; cursor: pointer;
+    font-family: inherit; letter-spacing: 0.22em;
+  }
+  #nav-map:hover, #nav-worlds-toggle:hover, #nav-worlds-toggle[aria-expanded="true"] {
+    color: var(--cyan); border-color: var(--cyan);
+    background: rgba(63, 217, 255, 0.08);
     text-shadow: 0 0 12px rgba(63, 217, 255, 0.6); }
+  #nav-map:focus-visible, #nav-worlds-toggle:focus-visible,
+  #nav-worlds-menu a:focus-visible {
+    outline: 2px solid var(--cyan); outline-offset: 2px;
+  }
+  #nav-worlds-menu {
+    position: absolute; top: calc(100% + 7px); left: 0;
+    display: none; width: 244px; padding: 8px;
+    border: 1px solid rgba(63, 217, 255, 0.28); border-radius: 5px;
+    background: rgba(5, 11, 18, 0.94); box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(10px);
+  }
+  #nav-worlds-menu.open { display: grid; gap: 3px; }
+  #nav-worlds-menu .worlds-label {
+    padding: 5px 8px 7px; color: rgba(143, 180, 196, 0.7);
+    font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+  }
+  #nav-worlds-menu .worlds-truth {
+    padding: 0 8px 7px; color: rgba(63, 217, 255, 0.55);
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+  }
+  #nav-worlds-menu .worlds-truth:empty { display: none; }
+  #nav-worlds-menu .worlds-lab-label {
+    margin-top: 5px; padding-top: 8px;
+    border-top: 1px solid rgba(63, 217, 255, 0.14);
+    color: rgba(143, 180, 196, 0.45);
+  }
+  #nav-worlds-menu a.lab { color: rgba(143, 180, 196, 0.5); font-size: 10px; }
+  #nav-worlds-menu a.lab:hover, #nav-worlds-menu a.lab.preferred {
+    color: rgba(185, 215, 227, 0.85); background: rgba(63, 217, 255, 0.05);
+  }
+  #nav-worlds-menu a {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    border-radius: 3px; padding: 8px 9px; color: #b9d7e3; text-decoration: none;
+    font-size: 11px; letter-spacing: 0.08em;
+  }
+  #nav-worlds-menu a:hover, #nav-worlds-menu a.preferred {
+    color: var(--cyan); background: rgba(63, 217, 255, 0.08);
+  }
+  #nav-worlds-menu a small {
+    color: rgba(143, 180, 196, 0.62); font-size: 8px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+  }
 
   #cards {
     position: fixed; top: 96px; right: 26px; z-index: 4;
@@ -125,19 +294,116 @@
   .card button:hover { background: rgba(63, 217, 255, 0.12); }
 
   #transcript {
-    position: fixed; left: 28px; bottom: 26px; z-index: 3;
-    width: min(460px, 44vw); max-height: 38vh; overflow: hidden;
-    display: flex; flex-direction: column; justify-content: flex-end;
+    position: fixed; left: 28px; bottom: 64px; z-index: 3;
+    width: min(460px, 44vw); max-height: 38vh; overflow-y: auto;
+    display: block; scrollbar-width: thin;
     -webkit-mask-image: linear-gradient(transparent 0%, black 26%);
             mask-image: linear-gradient(transparent 0%, black 26%);
+    transition: opacity 0.9s ease;
+  }
+  /* Caption mode (default): the conversation is a moment, not a wall.
+     Only the current exchange shows, and it slips away after quiet —
+     the full history is one LOG tap away. */
+  #transcript.caption { overflow: hidden; }
+  #transcript.caption .line { display: none; }
+  #transcript.caption .line:nth-last-child(-n+2) { display: block; }
+  #transcript.caption.asleep { opacity: 0; pointer-events: none; }
+  #transcript.log-open {
+    /* An opened log is a deliberate reading sheet: it sits ABOVE the rail
+       (z 6 > rail 4) on a near-solid ground so nothing ghosts through. */
+    z-index: 6;
+    max-height: 46vh; padding: 10px 14px 10px;
+    background: rgba(4, 12, 20, 0.96); border: 1px solid rgba(63, 217, 255, 0.28);
+    border-left: 3px solid rgba(63, 217, 255, 0.35); border-radius: 3px;
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45), 0 0 18px rgba(63, 217, 255, 0.06);
+    backdrop-filter: blur(6px);
+    -webkit-mask-image: none; mask-image: none;
+    scrollbar-color: rgba(63, 217, 255, 0.35) transparent;
+  }
+  /* ------------------------------------------------ the dock (bottom-left)
+     One quiet row under the conversation column: LOG, the composer (only
+     when the server says typing is real), and the hand-off hint. */
+  #dock {
+    position: fixed; left: 28px; bottom: 20px; z-index: 5;
+    width: min(460px, 44vw);
+    display: flex; align-items: center; gap: 10px;
+  }
+  #dock .chip {
+    background: rgba(8, 22, 34, 0.72); border: 1px solid rgba(63, 217, 255, 0.4);
+    border-radius: 3px; color: var(--cyan); font-family: inherit; font-size: 10px;
+    letter-spacing: 0.3em; padding: 4px 12px; cursor: pointer;
+  }
+  #dock .chip:hover, #dock .chip:focus-visible { background: rgba(63, 217, 255, 0.12); }
+  #dock .chip[aria-pressed="true"] {
+    background: rgba(63, 217, 255, 0.16); box-shadow: 0 0 10px rgba(63, 217, 255, 0.18);
+  }
+  #dock-unseen {
+    margin-left: 7px; color: #ffd36a; font-size: 10px; letter-spacing: 0.1em;
+    font-variant-numeric: tabular-nums;
+  }
+  #dock-type { flex: 1; display: none; }
+  #dock-type.on { display: block; }
+  #dock-input {
+    width: 100%; box-sizing: border-box;
+    background: rgba(8, 22, 34, 0.8); border: 1px solid rgba(63, 217, 255, 0.3);
+    border-radius: 3px; color: #e8fbff; font-family: inherit; font-size: 13.5px;
+    letter-spacing: 0.03em; padding: 6px 11px; outline: none;
+  }
+  #dock-input:focus { border-color: rgba(63, 217, 255, 0.65);
+    box-shadow: 0 0 12px rgba(63, 217, 255, 0.14); }
+  #dock-input::placeholder { color: rgba(127, 184, 204, 0.45); }
+  #dock-drop-note {
+    display: none; margin-left: auto; font-size: 9px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: rgba(127, 184, 204, 0.5); white-space: nowrap;
+  }
+  #dock-drop-note.on { display: inline; }
+  #dock-attach { flex-shrink: 0; }
+  @media (max-width: 1100px) { #dock-drop-note.on { display: none; } }
+
+  /* The hand-off veil: shown only mid-drag, names exactly where the file
+     lands and what happens next — no mystery drops. */
+  #drop-veil {
+    position: fixed; inset: 14px; z-index: 60; display: none; place-items: center;
+    background: rgba(3, 9, 16, 0.78); border: 1px dashed rgba(63, 217, 255, 0.55);
+    border-radius: 6px; text-align: center; pointer-events: none;
+  }
+  #drop-veil.on { display: grid; }
+  #drop-veil h2 {
+    margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5em;
+    text-indent: 0.5em; color: #bdefff; text-shadow: 0 0 18px rgba(63, 217, 255, 0.6);
+  }
+  #drop-veil p {
+    margin: 10px 0 0; font-size: 11.5px; letter-spacing: 0.14em;
+    color: rgba(170, 202, 216, 0.8);
   }
   .line { margin-top: 11px; font-size: 15.5px; line-height: 1.45; letter-spacing: 0.04em; }
+  .line a { color: #38c8dc; text-decoration: underline dotted; word-break: break-all; }
   .line .who {
     font-size: 10.5px; letter-spacing: 0.3em; display: block;
     margin-bottom: 1px; opacity: 0.65;
   }
   .line.user  { color: #cfe4ec; }
   .line.user .who { color: #8fb3c4; }
+  /* THE BRAKE receipt — a brief, calm confirmation the tap landed.
+     #hud-flash shares the idiom for dock receipts (file hand-offs etc.). */
+  #stopped-flash, #hud-flash {
+    position: fixed; left: 50%; bottom: 15%; transform: translateX(-50%);
+    padding: 9px 20px; border: 1px solid rgba(189, 239, 255, 0.5);
+    border-radius: 999px; background: rgba(6, 16, 24, 0.82);
+    color: #bdefff; font-size: 12px; letter-spacing: 0.28em;
+    pointer-events: none; opacity: 0; z-index: 40;
+  }
+  #hud-flash { bottom: 22%; }
+  #stopped-flash.show, #hud-flash.show { animation: stopped-fade 1.8s ease forwards; }
+  @keyframes stopped-fade {
+    0% { opacity: 0; transform: translate(-50%, 6px); }
+    18% { opacity: 1; transform: translate(-50%, 0); }
+    72% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #stopped-flash.show, #hud-flash.show { animation: none; opacity: 1; }
+  }
   .line.jarvis { color: var(--cyan); text-shadow: 0 0 12px rgba(63, 217, 255, 0.25); }
   .line.jarvis .who { color: #7fb8cc; }
   .caret { display: inline-block; width: 8px; margin-left: 2px;
@@ -154,6 +420,216 @@
   }
   @keyframes demo-blink { 50% { opacity: 0.15; } }
 
+  /* --------------------------------------- left rail: reminders + tasks */
+  #left-rail {
+    position: fixed; top: 108px; left: 26px; z-index: 4;
+    width: min(320px, 27vw); max-height: 56vh;
+    display: flex; flex-direction: column; gap: 12px;
+    overflow: hidden;
+  }
+  #reminders { display: none; }
+  #reminders-head, #board-head {
+    font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase;
+    color: rgba(63, 217, 255, 0.8); margin-bottom: 8px;
+  }
+  #reminders-head span, #board-head span {
+    color: rgba(127, 184, 204, 0.55); letter-spacing: 0.22em;
+  }
+  .reminder {
+    background: rgba(8, 22, 34, 0.78); border: 1px solid rgba(63, 217, 255, 0.22);
+    border-left: 3px solid rgba(63, 217, 255, 0.45); border-radius: 3px;
+    padding: 7px 10px 8px; margin-bottom: 7px;
+    backdrop-filter: blur(5px);
+  }
+  .reminder .t-row { display: flex; align-items: baseline; gap: 8px; }
+  .reminder .t-clock {
+    font-size: 12px; letter-spacing: 0.08em; color: var(--cyan);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .reminder .t-status {
+    margin-left: auto; font-size: 9.5px; letter-spacing: 0.26em;
+    text-transform: uppercase; color: rgba(127, 184, 204, 0.85);
+  }
+  .reminder .t-label {
+    margin-top: 2px; font-size: 13px; line-height: 1.35; color: #cfe4ec;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .reminder.set { border-left-color: var(--cyan); }
+  .reminder.due { border-left-color: #ffd36a; box-shadow: 0 0 14px rgba(255, 211, 106, 0.12); }
+  .reminder.due .t-status { color: #ffd36a; }
+  .reminder.spoken { border-left-color: #46f0a0; opacity: 0.92; }
+  .reminder.spoken .t-status { color: #46f0a0; }
+  .reminder.spoken .t-clock { color: #46f0a0; }
+  .reminder button {
+    margin-top: 7px; background: none; border: 1px solid rgba(63, 217, 255, 0.4);
+    border-radius: 3px; color: var(--cyan); font-family: inherit; font-size: 10px;
+    letter-spacing: 0.3em; padding: 3px 10px; cursor: pointer;
+  }
+  .reminder button:hover { background: rgba(63, 217, 255, 0.12); }
+  .reminder.due button, .reminder.spoken button {
+    border-color: rgba(70, 240, 160, 0.45); color: #46f0a0;
+  }
+
+  /* ------------------------------------------------- the task board */
+  #board {
+    display: none;
+    max-height: 34vh; overflow: hidden;
+    -webkit-mask-image: linear-gradient(black 78%, transparent 100%);
+            mask-image: linear-gradient(black 78%, transparent 100%);
+  }
+  #board.detail-open {
+    max-height: 50vh; overflow-x: hidden; overflow-y: auto;
+    -webkit-mask-image: none; mask-image: none;
+    scrollbar-width: thin; scrollbar-color: rgba(183, 166, 255, 0.45) transparent;
+  }
+  .task {
+    position: relative; overflow: hidden;
+    background: rgba(8, 22, 34, 0.78); border: 1px solid rgba(63, 217, 255, 0.22);
+    border-left: 3px solid rgba(63, 217, 255, 0.35); border-radius: 3px;
+    padding: 7px 10px 8px; margin-bottom: 7px;
+    backdrop-filter: blur(5px);
+    animation: card-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .task .t-row {
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .task .t-kind { color: rgba(63, 217, 255, 0.7); font-size: 11px; }
+  .task .t-status {
+    font-size: 9.5px; letter-spacing: 0.26em; text-transform: uppercase;
+    color: rgba(127, 184, 204, 0.85); white-space: nowrap;
+  }
+  .task .t-age {
+    margin-left: auto; font-size: 10px; letter-spacing: 0.12em;
+    color: rgba(127, 184, 204, 0.5); font-variant-numeric: tabular-nums;
+  }
+  .task .t-label {
+    margin-top: 2px; font-size: 13px; line-height: 1.35; color: #cfe4ec;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* The card itself carries no meters — CORE LOAD lives one click away in
+     the receipt (progressive disclosure). The card answers one question at
+     a glance: is she carrying something right now, and how is it going. */
+  .task:focus-visible { outline: 1px solid rgba(183, 166, 255, 0.72); outline-offset: 2px; }
+  .resource-detail {
+    position: relative; flex: 1 0 100%; padding: 10px; overflow: hidden;
+    border: 1px solid rgba(183, 166, 255, 0.3); border-radius: 5px;
+    background:
+      radial-gradient(circle at 100% 0, rgba(183, 166, 255, 0.1), transparent 42%),
+      rgba(5, 14, 26, 0.94); color: #cfe4ec;
+    font-size: 9px; line-height: 1.5; letter-spacing: 0.04em;
+  }
+  .resource-detail::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 24px; height: 1px;
+    background: var(--cyan); box-shadow: 0 0 8px rgba(63, 217, 255, 0.5);
+  }
+  .resource-detail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .resource-detail strong { color: #d5ceff; letter-spacing: 0.18em; }
+  .resource-detail-basis {
+    margin-left: auto; padding: 1px 5px; border: 1px solid rgba(93, 235, 255, 0.24);
+    border-radius: 8px; color: rgba(93, 235, 255, 0.74); font-size: 7px; letter-spacing: 0.14em;
+  }
+  .resource-detail-grid {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 6px;
+  }
+  .resource-detail-fact {
+    display: flex; justify-content: space-between; gap: 6px; padding: 4px 5px;
+    border: 1px solid rgba(127, 184, 204, 0.1); border-radius: 3px;
+    background: rgba(127, 184, 204, 0.035); color: rgba(170, 202, 216, 0.64);
+  }
+  .resource-detail-fact b { color: rgba(232, 249, 255, 0.88); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .resource-detail p {
+    margin: 7px 0 0; padding-top: 6px; border-top: 1px solid rgba(183, 166, 255, 0.14);
+    color: rgba(170, 202, 216, 0.72);
+  }
+  .task.live { border-left-color: var(--cyan);
+    box-shadow: 0 0 18px rgba(63, 217, 255, 0.10); }
+  .task.live .t-status { color: var(--cyan); }
+  .task.live::after {          /* the honest progress bar: motion, not fake % */
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+    background: linear-gradient(90deg, transparent 0%,
+      rgba(63, 217, 255, 0.85) 45%, transparent 90%);
+    width: 55%; animation: task-sweep 1.6s linear infinite;
+  }
+  @keyframes task-sweep { from { transform: translateX(-120%); }
+                          to   { transform: translateX(300%); } }
+  .stages { display: flex; gap: 3px; margin-top: 6px; }
+  .stages i {
+    flex: 1; height: 3px; border-radius: 2px;
+    background: rgba(63, 217, 255, 0.14);
+  }
+  .stages i.fill { background: rgba(63, 217, 255, 0.75);
+    box-shadow: 0 0 6px rgba(63, 217, 255, 0.35); }
+  .stages i.pulse { background: var(--cyan);
+    animation: stage-pulse 1.1s ease-in-out infinite; }
+  @keyframes stage-pulse { 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .stages i.pulse { animation: none; } }
+  .task.ok .stages i, .task.dead .stages i { animation: none; }
+  .task.ok .stages i.fill { background: rgba(70, 240, 160, 0.6); box-shadow: none; }
+  .task.dead .stages i.fill { background: rgba(255, 95, 107, 0.5); box-shadow: none; }
+  .task.wait { border-left-style: dashed; opacity: 0.85; }
+  /* Finished work goes quiet: compact, low contrast, one glance says ✓/✕.
+     The live card keeps the glow — hierarchy by de-emphasis, not volume. */
+  .task.ok, .task.dead { padding: 5px 10px 6px; opacity: 0.45; }
+  .task.ok:hover, .task.ok:focus-within,
+  .task.dead:hover, .task.dead:focus-within { opacity: 0.88; }
+  .task.ok   { border-left-color: #46f0a0; }
+  .task.ok .t-status { color: #46f0a0; }
+  .task.dead { border-left-color: #ff5f6b; }
+  .task.dead .t-status { color: #ff5f6b; }
+  .task.ok .t-label, .task.dead .t-label {
+    -webkit-line-clamp: 1; font-size: 12px; color: rgba(207, 228, 236, 0.75);
+  }
+  .task.dismissing { animation: card-out 0.22s ease forwards; pointer-events: none; }
+  @keyframes card-out { to { opacity: 0; transform: translateX(-14px); } }
+  .t-dismiss {
+    background: none; border: none; padding: 0 0 0 6px; cursor: pointer;
+    color: rgba(127, 184, 204, 0.55); font-family: inherit; font-size: 12px;
+    line-height: 1;
+  }
+  .t-dismiss:hover, .t-dismiss:focus-visible { color: #eaf7fc; }
+  #board-clear {
+    float: right; background: none; border: none; padding: 0; cursor: pointer;
+    color: rgba(127, 184, 204, 0.55); font-family: inherit; font-size: 10px;
+    letter-spacing: 0.3em; text-transform: uppercase;
+  }
+  #board-clear:hover, #board-clear:focus-visible { color: var(--cyan); }
+  .task { cursor: default; }
+  .task.open, .task[tabindex] { cursor: pointer; }
+  .task-menu {
+    margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .task-menu button {
+    background: none; border: 1px solid rgba(63, 217, 255, 0.4);
+    border-radius: 3px; color: var(--cyan); font-family: inherit; font-size: 10px;
+    letter-spacing: 0.28em; padding: 3px 10px; cursor: pointer;
+  }
+  .task-menu button:hover { background: rgba(63, 217, 255, 0.12); }
+  .task-menu button.danger {
+    border-color: rgba(255, 95, 107, 0.55); color: #ff5f6b;
+  }
+
+  /* VERA's own panels dock here — hud/panels/ is HER writable zone; each
+     panel is isolated so a broken one dies alone, never the face */
+  #panel-dock {
+    /* Never guillotine a card mid-content (the 22vh/overflow:hidden cut
+       sliced the Current Moment trust line and left the next panel as an
+       orphan sliver). Panels keep their full height; if the dock runs out
+       of room it scrolls with the bar hidden — same deliberate-reach idiom
+       as the transcript. */
+    max-height: 38vh; overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: none;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  #panel-dock::-webkit-scrollbar { display: none; }
+  .vera-panel {
+    flex-shrink: 0;
+    background: rgba(8, 22, 34, 0.78); border: 1px solid rgba(63, 217, 255, 0.22);
+    border-radius: 3px; padding: 9px 11px; backdrop-filter: blur(5px);
+    font-size: 12.5px; color: #cfe4ec;
+  }
+
   /* Phones: one clean vertical stack, no overlaps, no blur, less chrome.
      Zones bottom-up: input bar (10) → hub row (64) → transcript (64/246). */
   @media (max-width: 640px) {
@@ -163,7 +639,9 @@
     #c-tr { top: 12px; right: 12px; }
     #c-tl .sub, #c-tr .sub { display: none; }
     #c-br { display: none; }
-    #nav-map { top: 74px; left: 12px; font-size: 10px; padding: 3px 9px; }
+    #nav-space { top: 74px; left: 12px; }
+    #nav-map, #nav-worlds-toggle { font-size: 10px; padding: 3px 9px; }
+    #nav-worlds-menu { width: min(244px, calc(100vw - 24px)); }
     #status { font-size: 14px; letter-spacing: 0.4em; text-indent: 0.4em; }
     #status-sub { display: none; }
     #status-wrap { top: auto; bottom: 280px; }
@@ -173,42 +651,194 @@
     .card { backdrop-filter: none; background: rgba(6, 16, 26, 0.94); }
     #transcript { left: 12px; right: 12px; width: auto; bottom: 78px; max-height: 24vh; }
     body.hub-on #transcript { bottom: 250px; max-height: 16vh; }
+    #left-rail { top: 104px; left: 12px; width: auto; right: 12px; max-height: 28vh; }
+    #board, #panel-dock { display: none !important; }  /* phones: tasks off; reminders stay */
+    #dock, #drop-veil { display: none !important; }    /* phones: the transcript IS the surface */
+  }
+</style>
+<style id="public-hud-compat">
+  #reactor-brake, #mic-lamp, #input-readiness-bar, #reflection-readiness,
+  #nav-worlds-toggle, #nav-worlds-menu { display: none !important; }
+  #nav-space { z-index: 4; }
+  #nav-map { border-radius: 3px; background: none; }
+  #nav-map:hover { background: rgba(63,217,255,0.08); }
+  #transcript, #transcript.log-open {
+    bottom: 26px; z-index: 3; max-height: 38vh; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 0; border: 0; border-radius: 0; background: none;
+    box-shadow: none; backdrop-filter: none;
+    -webkit-mask-image: linear-gradient(transparent 0%, black 26%);
+    mask-image: linear-gradient(transparent 0%, black 26%);
+  }
+  @media (max-width: 640px) {
+    #transcript, #transcript.log-open { bottom: 78px; max-height: 24vh; }
+    body.hub-on #transcript { bottom: 250px; max-height: 16vh; }
   }
 </style>
 </head>
-<body>
+<body data-input-phase="unknown" data-input-ready="false">
 <canvas id="reactor"></canvas>
+<button id="reactor-brake" type="button" aria-label="Stop VERA speaking" disabled></button>
 
 <div class="bracket" id="b-tl"></div><div class="bracket" id="b-tr"></div>
 <div class="bracket" id="b-bl"></div><div class="bracket" id="b-br"></div>
 
 <div class="corner" id="c-tl"><b>V.E.R.A.</b><span class="sub">Virtual Execution & Response Assistant</span></div>
 <div class="corner" id="c-tr"><b id="clock">--:--:--</b><span class="sub" id="date-line">&nbsp;</span></div>
-<div class="corner" id="c-br"><span id="link-dot"></span><span id="link-label">LINK OFFLINE</span><span class="sub">ws 127.0.0.1:<span id="port-label">8765</span></span><span class="sub"><span id="model-badge">◆ STANDBY</span></span><span class="sub" id="tokens-line">COGNITION —</span></div>
+<div class="corner" id="c-br"><span id="link-dot"></span><span id="link-label">LINK OFFLINE</span><span class="sub">ws 127.0.0.1:<span id="port-label">8765</span></span><span class="sub"><span id="model-badge">◆ STANDBY</span></span><span class="sub" id="tokens-line">COGNITION —</span><span id="reactor-vitals" aria-label="Latest provider-reported model load"></span></div>
 
-<a id="nav-map" href="#">◈ Brain Map</a>
+<nav id="nav-space" aria-label="VERA views">
+  <a id="nav-map" href="#">◈ Brain Map</a>
+  <button id="nav-worlds-toggle" type="button" aria-haspopup="menu"
+          aria-expanded="false" aria-controls="nav-worlds-menu">Worlds ⌄</button>
+  <div id="nav-worlds-menu" role="menu" aria-label="Choose a World" aria-hidden="true">
+    <span class="worlds-label">Living Worlds</span>
+    <span class="worlds-truth" id="nav-worlds-truth"></span>
+    <a role="menuitem" data-world-skin="isles" href="#">The Isles <small>sky</small></a>
+    <a role="menuitem" data-world-skin="lanterntown" href="#">Lantern Town <small>festival</small></a>
+    <a role="menuitem" data-world-skin="sea" href="#">Cartographer's Sea <small>chart</small></a>
+    <span class="worlds-label worlds-lab-label" aria-hidden="true">Lab · retired register</span>
+    <a role="menuitem" data-world-skin="lantern" class="lab" href="#">Beacon Coast <small>study</small></a>
+    <a role="menuitem" data-world-skin="town" class="lab" href="#">Town <small>streets</small></a>
+    <a role="menuitem" data-world-skin="meadow" class="lab" href="#">Meadow <small>garden</small></a>
+  </div>
+</nav>
+<div id="left-rail">
+  <div id="reminders"></div>
+  <div id="board"></div>
+  <div id="panel-dock"></div>
+</div>
 <div id="cards"></div>
 
 <div id="status-wrap">
   <div id="status">LINK OFFLINE</div>
+  <div aria-live="polite" id="mic-lamp">LINK DOWN — NOT LISTENING YET; INPUT STATE UNKNOWN</div>
+  <div aria-hidden="true" id="input-readiness-bar"></div>
   <div id="status-sub">PUBLIC MODEL &nbsp;//&nbsp; SANDBOXED</div>
+  <div id="reflection-readiness" role="status" aria-live="polite">
+    CARE PAUSED · ADMISSION HELD
+  </div>
 </div>
 
 <div id="transcript"></div>
+<div id="dock">
+  <button id="dock-log" class="chip" type="button" aria-pressed="false"
+          title="Show or hide the conversation log">LOG<output id="dock-unseen" hidden></output></button>
+  <form id="dock-type" autocomplete="off">
+    <input id="dock-input" type="text" maxlength="2000"
+           placeholder="Type to her — Enter sends" aria-label="Type to VERA">
+  </form>
+  <button id="dock-attach" class="chip" type="button" hidden disabled
+          title="Attach up to 3 files, 8 MB each" aria-label="Attach files to VERA">ATTACH</button>
+  <input id="dock-files" type="file" multiple hidden aria-label="Choose files for VERA">
+  <span id="dock-drop-note">or drop files</span>
+</div>
+<div id="drop-veil" aria-hidden="true">
+  <div>
+    <h2>HAND HER A FILE</h2>
+    <p>LANDS IN DOCUMENTS\VERA\INBOX — SHE'LL SEE IT WITH YOUR NEXT WORDS</p>
+  </div>
+</div>
+<div id="hud-flash" role="status" aria-live="polite"></div>
 <div id="demo-blink">DEMO</div>
 
 <script>
 'use strict';
 
 /* ---------------------------------------------------------------- modes */
-/* Mirrors the states sent by hud.py: idle | listening | thinking | speaking */
+/* Mirrors the states sent by hud.py: booting | idle | listening | thinking | speaking
+   | quiet. Quiet is the dozed lamp — a warm, dim ember, deliberately outside
+   the cyan family, so "asleep" can never be mistaken for "waiting". */
 const MODES = {
   offline:   { color: [118, 132, 148], text: 'LINK OFFLINE', speed: 0.20, glow: 0.28 },
+  booting:   { color: [ 47, 148, 187], text: 'STARTING',     speed: 0.52, glow: 0.52 },
+  /* WARMING: the mind is paying its cold start; she greets when it lands.
+     Faster spin than idle, dimmer than thinking — visibly "coming alive". */
+  warming:   { color: [ 94, 164, 224], text: 'WAKING',       speed: 1.60, glow: 0.62 },
   idle:      { color: [ 47, 148, 187], text: 'STANDING BY',  speed: 0.38, glow: 0.50 },
   listening: { color: [ 63, 217, 255], text: 'LISTENING',    speed: 1.00, glow: 0.90 },
   thinking:  { color: [124, 150, 255], text: 'PROCESSING',   speed: 2.60, glow: 0.80 },
   speaking:  { color: [189, 239, 255], text: 'SPEAKING',     speed: 1.15, glow: 1.00 },
+  quiet:     { color: [176, 138,  84], text: 'QUIET',        speed: 0.07, glow: 0.16 },
 };
+
+/* THE LISTENING LAMP — ZERO-INFERENCE RULE (Codex AMENDs on 5d61121 +
+   dfbcfce): the five modes are ORCHESTRATOR state, not hardware receipts
+   and not input-channel receipts. Text mode drives the SAME states with no
+   Ears instance, so the SHARED map below is channel-neutral — no mic, no
+   recording, and no spoken-wake promise. The voice wording renders ONLY
+   under the server's authoritative input receipt ({"t":"ears"}, sent by
+   main from the literal existence of the wake listener). Offline claims
+   NOTHING: without the link the page cannot know her state at all. */
+const LAMP = {
+  offline:   'LINK DOWN — STATE UNKNOWN',
+  booting:   'STARTUP IN PROGRESS',
+  warming:   'WARMING UP — SHE GREETS YOU WHEN READY',
+  idle:      'STANDING BY',
+  listening: 'CONVERSATION OPEN',
+  thinking:  'WORKING',
+  speaking:  'TAP THE FACE TO STOP HER',
+  quiet:     'QUIET — WAKE VERA WHEN NEEDED',
+};
+/* Voice wording renders ONLY under the receipt AND with the phrase the
+   receipt itself carried — derived server-side from the wake models that
+   actually loaded. No receipt phrase, no wake promise (Codex AMEND r3:
+   a boolean cannot authorize a configured phrase — the stock default is
+   the VERA model, not VERA's name). */
+let earsPresent = null;  // null until the server states it, reset per connection
+let earsPhrase = null;   // bounded label from the receipt, e.g. HEY VERA
+const INPUT_PHASES = new Set([
+  'unknown', 'stack_started', 'capture_ready', 'capturing', 'wake_armed',
+  'followup_armed',
+  'degraded', 'unavailable'
+]);
+let inputReadiness = { phase: 'unknown', ready: false, phrase: null };
+
+function wakeReady() {
+  return inputReadiness.phase === 'wake_armed' && inputReadiness.ready === true;
+}
+
+function resetInputReadiness() {
+  inputReadiness = { phase: 'unknown', ready: false, phrase: null };
+  renderInputReadiness();
+}
+
+function notReadyLamp() {
+  if (inputReadiness.phase === 'degraded')
+    return 'NOT LISTENING YET — INPUT DEGRADED';
+  if (inputReadiness.phase === 'unavailable')
+    return 'NOT LISTENING YET — INPUT UNAVAILABLE';
+  if (inputReadiness.phase === 'stack_started')
+    return 'NOT LISTENING YET — STARTING INPUT';
+  if (inputReadiness.phase === 'capturing')
+    return 'HEARING YOUR REQUEST — WAKE LISTENER PAUSED FOR THIS TURN';
+  if (inputReadiness.phase === 'followup_armed')
+    return 'LISTENING WHILE WORKING — ADD TO IT OR SAY CANCEL';
+  if (inputReadiness.phase === 'capture_ready')
+    return 'NOT LISTENING YET — INPUT CAPTURE VERIFIED; ARMING WAKE';
+  return 'NOT LISTENING YET — INPUT STATE UNKNOWN';
+}
+
+function lampFor(name) {
+  if (name === 'offline')
+    return 'LINK DOWN — NOT LISTENING YET; INPUT STATE UNKNOWN';
+  if (!wakeReady()) return notReadyLamp();
+  if (name === 'booting') return 'INPUT READY — FINISHING STARTUP';
+  if (inputReadiness.phrase) {
+    if (name === 'idle')  return "AWAITING '" + inputReadiness.phrase + "'";
+    if (name === 'quiet') return "QUIET — SAY '" + inputReadiness.phrase + "' TO WAKE";
+  }
+  if (name === 'idle') return 'INPUT READY';
+  return LAMP[name] || '';
+}
+
+function renderInputReadiness() {
+  const ready = wakeReady();
+  document.body.dataset.inputPhase = inputReadiness.phase;
+  document.body.dataset.inputReady = ready ? 'true' : 'false';
+  const lamp = document.getElementById('mic-lamp');
+  if (lamp) lamp.textContent = lampFor(mode);
+}
 
 let mode = 'offline';
 const cur = { color: [118, 132, 148], speed: 0.2, glow: 0.28 };  // eased toward MODES[mode]
@@ -219,8 +849,21 @@ function setMode(name) {
   if (!(name in MODES) || name === mode) return;
   mode = name;
   document.getElementById('status').textContent = MODES[name].text;
+  // The lamp line rides every state change — same element, live region, so a
+  // screen reader hears the truth exactly when a sighted glance sees it.
+  const lamp = document.getElementById('mic-lamp');
+  if (lamp) lamp.textContent = lampFor(name);
   document.body.classList.toggle('online', name !== 'offline');
   document.getElementById('link-label').textContent = name === 'offline' ? 'LINK OFFLINE' : 'LINK ONLINE';
+  // THE BRAKE: the full-screen reactor canvas is inert art. Only the bounded,
+  // circular control over the orb becomes reachable while she is speaking.
+  const brakeEl = document.getElementById('reactor-brake');
+  if (brakeEl) {
+    const armed = name === 'speaking';
+    brakeEl.disabled = !armed;
+    brakeEl.classList.toggle('armed', armed);
+    if (!armed && document.activeElement === brakeEl) brakeEl.blur();
+  }
 }
 
 /* ---------------------------------------------------------------- canvas */
@@ -377,7 +1020,41 @@ const typeQueue = [];
 let typing = false;
 let typeTimer = null;
 
-function addLine(who, text) {
+/* Scrollback: stick to the newest line ONLY when already reading it —
+   scrolled-up history never gets yanked away (the owner, 2026-08-13: long
+   replies "just skip past me visually"). */
+function nearBottom() {
+  return transcriptEl.scrollHeight - transcriptEl.scrollTop
+         - transcriptEl.clientHeight < 60;
+}
+function pinBottom() { transcriptEl.scrollTop = transcriptEl.scrollHeight; }
+
+/* URLs become real links (safe: text nodes + anchors only, never HTML). */
+function renderRich(el, text) {
+  el.textContent = '';
+  for (const p of String(text).split(/(https?:\/\/[^\s]+)/g)) {
+    if (/^https?:\/\//.test(p)) {
+      const a = document.createElement('a');
+      a.href = p; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = p.replace(/^https?:\/\/(www\.)?/, '').slice(0, 60);
+      el.appendChild(a);
+    } else if (p) el.appendChild(document.createTextNode(p));
+  }
+}
+
+/* speaker label for user turns: closed enum, defaults to unverified. */
+function speakerLabel(speaker) {
+  if (speaker === 'owner') return 'YOU';
+  if (speaker === 'typed') return 'TYPED';
+  if (speaker === 'other') return 'OTHER VOICE';
+  return 'HEARD · UNVERIFIED';  /* unverified or unknown */
+}
+
+/* Keyed by transcript id so speaker_attribution can update the label. */
+const transcriptRows = new Map();
+
+function addLine(who, text, speaker, id) {
+  const pin = nearBottom();
   const div = document.createElement('div');
   div.className = 'line ' + who;
   const label = document.createElement('span');
@@ -386,14 +1063,20 @@ function addLine(who, text) {
   const body = document.createElement('span');
   body.className = 'body';
   div.append(label, body);
+  if (who === 'user' && id) transcriptRows.set(id, { div, label });
   transcriptEl.appendChild(div);
-  while (transcriptEl.children.length > 8) transcriptEl.firstChild.remove();
+  while (transcriptEl.children.length > 200) {
+    const removed = transcriptEl.firstChild;
+    transcriptEl.removeChild(removed);
+  }
+  if (pin) pinBottom();
+  noteLine();   // caption wakes; LOG badge counts what lands while it's closed
 
   if (who === 'jarvis') {
     typeQueue.push({ el: body, text });
     pumpTyping();
   } else {
-    body.textContent = text;
+    renderRich(body, text);
   }
 }
 
@@ -407,11 +1090,14 @@ function pumpTyping() {
   job.el.after(caret);
   let i = 0;
   typeTimer = setInterval(() => {
+    const pin = nearBottom();
     i = Math.min(job.text.length, i + 2);
     job.el.textContent = job.text.slice(0, i);
+    if (pin) pinBottom();
     if (i >= job.text.length) {
       clearInterval(typeTimer);
       caret.remove();
+      renderRich(job.el, job.text);   // typed plain; finished rich (links live)
       typing = false;
       pumpTyping();
     }
@@ -425,7 +1111,137 @@ window.VERA_TRANSCRIPT_RESET = () => {
   typing = false;
   typeQueue.length = 0;
   transcriptEl.replaceChildren();
+  unseen = 0; renderUnseen();
 };
+
+/* ------------------------------------------------ the dock + caption mode
+   Default: the conversation renders as a CAPTION (current exchange only,
+   fading after quiet); the full scrollback lives behind LOG. Phones and the
+   demo keep the classic always-on transcript — there it IS the surface. */
+const PHONE = matchMedia('(max-width: 640px)').matches;
+const LOG_KEY = 'vera.hud.log.v1';
+let logOpen = PHONE;
+let unseen = 0, lastLineAt = 0, connectedAt = 0;
+let caps = { typed: false, files: false, artifact_open: false };
+const dockEl = document.getElementById('dock');
+const logBtn = document.getElementById('dock-log');
+const unseenEl = document.getElementById('dock-unseen');
+const flashEl = document.getElementById('hud-flash');
+
+function renderUnseen() {
+  unseenEl.hidden = unseen <= 0;
+  unseenEl.textContent = unseen > 0 ? String(Math.min(unseen, 99)) : '';
+}
+function wakeCaption() {
+  lastLineAt = Date.now();
+  transcriptEl.classList.remove('asleep');
+}
+function applyLogState() {
+  transcriptEl.classList.toggle('caption', !logOpen);
+  transcriptEl.classList.toggle('log-open', logOpen);
+  logBtn.setAttribute('aria-pressed', String(logOpen));
+  if (logOpen) { unseen = 0; renderUnseen(); wakeCaption(); pinBottom(); }
+}
+function hudFlash(text) {
+  flashEl.textContent = String(text).slice(0, 90);
+  flashEl.classList.remove('show');
+  void flashEl.offsetWidth;               // restart the fade
+  flashEl.classList.add('show');
+}
+function noteLine() {
+  wakeCaption();
+  // Replayed history on (re)connect isn't "missed" — only lines that land
+  // while the log is closed and the link is settled count.
+  if (!logOpen && connectedAt && Date.now() - connectedAt > 2000) {
+    unseen++; renderUnseen();
+  }
+}
+setInterval(() => {
+  if (!logOpen && lastLineAt && Date.now() - lastLineAt > 45000)
+    transcriptEl.classList.add('asleep');
+}, 5000);
+logBtn.onclick = () => {
+  logOpen = !logOpen;
+  try { localStorage.setItem(LOG_KEY, logOpen ? '1' : '0'); } catch {}
+  applyLogState();
+};
+
+document.getElementById('dock-type').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const input = document.getElementById('dock-input');
+  const text = input.value.trim();
+  if (!text || !caps.typed || !ws || ws.readyState !== WebSocket.OPEN) return;
+  try {
+    ws.send(JSON.stringify({ t: 'typed', v: text }));
+    input.value = '';
+  } catch {}
+});
+
+/* File hand-off: picker and drop share the same connection-bound transport. */
+const veilEl = document.getElementById('drop-veil');
+const attachEl = document.getElementById('dock-attach');
+const fileInputEl = document.getElementById('dock-files');
+let dragDepth = 0;
+let fileHandoffGeneration = 0;
+function setFileHandoffAvailable(available) {
+  fileHandoffGeneration++;
+  attachEl.hidden = !available;
+  attachEl.disabled = !available;
+  fileInputEl.value = '';
+  dragDepth = 0;
+  veilEl.classList.remove('on');
+}
+function handoffFiles(selection) {
+  const files = Array.from(selection || []);
+  if (!files.length) return;
+  const link = ws;
+  const generation = fileHandoffGeneration;
+  const connected = () => caps.files && generation === fileHandoffGeneration
+    && ws === link && link && link.readyState === WebSocket.OPEN;
+  if (!connected()) { hudFlash('LINK OFFLINE — NOTHING SENT'); return; }
+  if (files.length > 3) { hudFlash('CHOOSE UP TO 3 FILES AT A TIME — NOTHING SENT'); return; }
+  for (const f of files) {
+    if (!f.size) { hudFlash((f.name + ' IS EMPTY — NOT SENT').toUpperCase()); continue; }
+    if (f.size > 8 * 1024 * 1024) { hudFlash((f.name + ' IS OVER THE 8MB LIMIT').toUpperCase()); continue; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      // A reconnect must not redirect a file selected for an earlier session.
+      if (!connected()) { hudFlash('LINK CHANGED — SELECT YOUR FILE AGAIN'); return; }
+      const b64 = String(reader.result).split(',', 2)[1] || '';
+      if (!b64) { hudFlash((f.name + ' COULD NOT BE READ').toUpperCase()); return; }
+      try {
+        link.send(JSON.stringify({ t: 'file_drop', name: f.name, size: f.size, data: b64 }));
+        hudFlash(('SENDING ' + f.name).toUpperCase());
+      } catch { hudFlash('FILE SEND FAILED — SELECT YOUR FILE AGAIN'); }
+    };
+    reader.onerror = () => hudFlash((f.name + ' COULD NOT BE READ').toUpperCase());
+    reader.onabort = () => hudFlash((f.name + ' WAS NOT SENT').toUpperCase());
+    try { reader.readAsDataURL(f); }
+    catch { hudFlash((f.name + ' COULD NOT BE READ').toUpperCase()); }
+  }
+}
+attachEl.addEventListener('click', () => {
+  if (caps.files && ws && ws.readyState === WebSocket.OPEN) fileInputEl.click();
+});
+fileInputEl.addEventListener('change', () => {
+  handoffFiles(fileInputEl.files);
+  fileInputEl.value = ''; // the same file can be selected again after a failure
+});
+window.addEventListener('dragenter', (ev) => {
+  if (!caps.files || !Array.from(ev.dataTransfer?.types || []).includes('Files')) return;
+  ev.preventDefault(); dragDepth++; veilEl.classList.add('on');
+});
+window.addEventListener('dragover', (ev) => { if (caps.files) ev.preventDefault(); });
+window.addEventListener('dragleave', () => {
+  if (!caps.files) return;
+  if (--dragDepth <= 0) { dragDepth = 0; veilEl.classList.remove('on'); }
+});
+window.addEventListener('drop', (ev) => {
+  if (!caps.files) return;
+  ev.preventDefault(); dragDepth = 0; veilEl.classList.remove('on');
+  if (!ws || ws.readyState !== WebSocket.OPEN) { hudFlash('LINK OFFLINE — NOTHING SENT'); return; }
+  handoffFiles(ev.dataTransfer && ev.dataTransfer.files);
+});
 
 /* ------------------------------------------------------------------ clock */
 function tickClock() {
@@ -439,28 +1255,505 @@ function tickClock() {
 setInterval(tickClock, 1000);
 tickClock();
 
+function isSemanticIsoWeek(value) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(value || '');
+  if (!match) return false;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  if (week < 1 || week > 53) return false;
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const mondayOffset = (jan4.getUTCDay() + 6) % 7;
+  const thursday = new Date(Date.UTC(
+    year, 0, 4 - mondayOffset + ((week - 1) * 7) + 3
+  ));
+  return thursday.getUTCFullYear() === year;
+}
+
 /* -------------------------------------------------------------- websocket */
 const params = new URLSearchParams(location.search);
 const port = params.get('port') || '8765';
 const DEMO = params.has('demo');
 document.getElementById('port-label').textContent = DEMO ? 'demo' : port;
-document.getElementById('nav-map').href = DEMO ? 'map.html?demo=1' : 'map.html?demo=1&x=' + port;
+document.getElementById('nav-map').href = DEMO ? 'map.html?demo=1' : 'map.html?demo=1&x=' + encodeURIComponent(port);
+const WORLD_SKIN_KEY = 'vera.world.skin';
+const WORLD_SKINS = new Set(['isles', 'lanterntown', 'sea', 'lantern', 'town', 'meadow']);
+const worldsToggle = document.getElementById('nav-worlds-toggle');
+const worldsMenu = document.getElementById('nav-worlds-menu');
+const worldLinks = [...worldsMenu.querySelectorAll('[data-world-skin]')];
+
+function worldHref(skin) {
+  const target = new URLSearchParams({ skin, from: 'hud' });
+  if (DEMO) target.set('demo', '1');
+  else target.set('port', port);
+  return 'world.html?' + target.toString();
+}
+function closeWorldsMenu({ restoreFocus = false } = {}) {
+  worldsMenu.classList.remove('open');
+  worldsMenu.setAttribute('aria-hidden', 'true');
+  worldsToggle.setAttribute('aria-expanded', 'false');
+  if (restoreFocus) worldsToggle.focus();
+}
+function openWorldsMenu() {
+  worldsMenu.classList.add('open');
+  worldsMenu.setAttribute('aria-hidden', 'false');
+  worldsToggle.setAttribute('aria-expanded', 'true');
+}
+function markPreferredWorld(skin) {
+  worldLinks.forEach(link => link.classList.toggle('preferred', link.dataset.worldSkin === skin));
+}
+
+let preferredWorld = 'sea';
+try {
+  const storedWorld = localStorage.getItem(WORLD_SKIN_KEY);
+  if (WORLD_SKINS.has(storedWorld)) preferredWorld = storedWorld;
+} catch {}
+worldLinks.forEach(link => {
+  const skin = link.dataset.worldSkin;
+  link.href = worldHref(skin);
+  link.addEventListener('click', () => {
+    try { localStorage.setItem(WORLD_SKIN_KEY, skin); } catch {}
+  });
+});
+markPreferredWorld(preferredWorld);
+// One graph, several views — the menu whispers the true scene state at the
+// point of choice. world_data.js is the content-free scene (hashed ids,
+// counts, stage; titles never), so the line can tell the truth without
+// opening anything private. No scene file → the line simply doesn't exist.
+(() => {
+  const truth = document.getElementById('nav-worlds-truth');
+  if (!truth) return;
+  const scene = window.WORLD_SCENE;
+  if (!scene || !scene.counts) { truth.remove(); return; }
+  const stage = (scene.stage || '').toUpperCase();
+  truth.textContent = `${scene.counts.elements} ELEMENTS · ${scene.counts.links} LINKS` +
+    (stage ? ` · ${stage}` : '');
+})();
+worldsToggle.addEventListener('click', ev => {
+  ev.stopPropagation();
+  if (worldsMenu.classList.contains('open')) closeWorldsMenu();
+  else openWorldsMenu();
+});
+worldsToggle.addEventListener('keydown', ev => {
+  if (ev.key !== 'ArrowDown') return;
+  ev.preventDefault();
+  openWorldsMenu();
+  const preferred = worldsMenu.querySelector('.preferred') || worldLinks[0];
+  preferred.focus();
+});
+worldsMenu.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape') {
+    ev.preventDefault(); closeWorldsMenu({ restoreFocus: true }); return;
+  }
+  if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
+  ev.preventDefault();
+  const at = Math.max(0, worldLinks.indexOf(document.activeElement));
+  const direction = ev.key === 'ArrowDown' ? 1 : -1;
+  worldLinks[(at + direction + worldLinks.length) % worldLinks.length].focus();
+});
+addEventListener('click', ev => {
+  if (!document.getElementById('nav-space').contains(ev.target)) closeWorldsMenu();
+});
+addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && worldsMenu.classList.contains('open')) {
+    ev.preventDefault(); closeWorldsMenu({ restoreFocus: true });
+  }
+});
 let ws = null;
+
+/* Dock init — after DEMO exists. The demo keeps the classic always-on
+   transcript (the show narrates through it) and gets no dock verbs. */
+try { if (!PHONE) logOpen = localStorage.getItem(LOG_KEY) === '1'; } catch {}
+if (DEMO) { logOpen = true; dockEl.style.display = 'none'; }
+applyLogState();
+
+/* ------------------------------------------------------------ task board */
+const TASK_KIND_GLYPH = { turn: '◆', ask: '▸', lane: '◈' };
+/* honest stage ladders — filled by REAL status, never a fake percent */
+const STAGES = {
+  ask:  ['heard', 'queued', 'answering', 'done'],
+  lane: ['jotted', 'running', 'report ready', 'delivered'],
+  turn: ['thinking', 'speaking', 'done'],
+};
+const STAGE_SYNONYM = { 'notepad full': 'jotted', 'timed out': 'report ready',
+                        'answering': 'answering', 'cancelled': 'done',
+                        'interrupted': 'done', 'snagged': 'done',
+                        'missed': 'done', 'unclear': 'done',
+                        'cancelled the rest': 'done' };
+function stageBar(kind, status, closed) {
+  const ladder = STAGES[kind] || STAGES.turn;
+  const norm = STAGE_SYNONYM[status] || status;
+  let idx = ladder.indexOf(norm);
+  if (closed) idx = ladder.length - 1;
+  if (idx < 0) idx = 0;
+  const bar = document.createElement('div');
+  bar.className = 'stages';
+  ladder.forEach((_, i) => {
+    const seg = document.createElement('i');
+    if (i < idx || closed) seg.className = 'fill';
+    else if (i === idx) seg.className = 'fill pulse';
+    bar.appendChild(seg);
+  });
+  return bar;
+}
+const TASK_LIVE = new Set(['thinking', 'answering', 'running']);
+
+function taskAge(sec) {
+  sec = Math.max(0, sec | 0);
+  return (sec / 60 | 0) + ':' + String(sec % 60).padStart(2, '0');
+}
+
+function resourceNumber(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return '—';
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return n < 10 && n % 1 ? n.toFixed(1) : String(Math.round(n));
+}
+
+function resourceMetric(node) {
+  node = node || {};
+  const est = node.estimate || {};
+  const actual = node.actual;
+  const hasActual = actual !== null && actual !== undefined && Number.isFinite(Number(actual));
+  const text = hasActual
+    ? resourceNumber(Number(actual))
+    : `~${resourceNumber(est.low || 0)}–${resourceNumber(est.high || 0)}`;
+  let load = Number(node.display_load || 0);
+  if (hasActual && Number(est.high) > 0) {
+    load = Math.min(100, load * (Number(actual) / Number(est.high)));
+  }
+  return { text, load: Math.max(0, Math.min(100, load)), hasActual };
+}
+
+const RESOURCE_TRACKS = [
+  ['context', 'CONTEXT', r => r.model && r.model.input],
+  ['answer', 'ANSWER', r => r.model && r.model.output],
+  ['retrieve', 'RETRIEVE', r => r.retrieval],
+  ['tools', 'TOOLS', r => r.tools],
+  ['voice', 'VOICE', r => r.voice],
+];
+
+/* CORE LOAD meters no longer ride on the cards themselves — the receipt
+   below is the single home for resource truth, opened on demand. */
+function resourceDetail(resource) {
+  if (!resource || resource.schema !== 'vera.resource-vitals/v1') return null;
+  const div = document.createElement('div');
+  div.className = 'resource-detail';
+  const head = document.createElement('div');
+  head.className = 'resource-detail-head';
+  const title = document.createElement('strong');
+  title.textContent = String(resource.profile || 'TASK').toUpperCase();
+  const evidence = document.createElement('span');
+  evidence.className = 'resource-detail-basis';
+  evidence.textContent = resource.basis === 'estimate' ? 'PROJECTED' : 'MIXED RECEIPT';
+  head.append(title, evidence);
+  const grid = document.createElement('div');
+  grid.className = 'resource-detail-grid';
+  const facts = [];
+  for (const [, label, pick] of RESOURCE_TRACKS) {
+    const node = pick(resource) || {};
+    const metric = resourceMetric(node);
+    facts.push([label, `${metric.text} ${node.unit || (label === 'CONTEXT' || label === 'ANSWER' ? 'tokens' : '')}`.trim()]);
+  }
+  const reasoning = resource.model && resource.model.reasoning;
+  if (reasoning && reasoning.actual) facts.push(['REASONING', `${resourceNumber(reasoning.actual)} tokens`]);
+  const elapsed = resourceMetric(resource.elapsed);
+  facts.push(['TIME', `${elapsed.text} seconds`]);
+  for (const [label, value] of facts) {
+    const fact = document.createElement('div');
+    fact.className = 'resource-detail-fact';
+    const name = document.createElement('span'); name.textContent = label;
+    const amount = document.createElement('b'); amount.textContent = value;
+    fact.append(name, amount); grid.appendChild(fact);
+  }
+  const note = document.createElement('p');
+  note.textContent = resource.plain_note || 'Unlike units are shown separately.';
+  div.append(head, grid, note);
+  return div;
+}
+
+function renderReactorVitals(usage) {
+  const box = document.getElementById('reactor-vitals');
+  const last = (usage && usage.last) || {};
+  const rows = [
+    ['CONTEXT', Number(last.input_tokens || 0), 120000],
+    ['ANSWER', Number(last.output_tokens || 0), 40000],
+    ['CACHED', Number(last.cache_read_input_tokens || 0), 120000],
+  ];
+  if (!rows.some(([, value]) => value > 0)) {
+    box.classList.remove('on'); box.replaceChildren(); return;
+  }
+  const nodes = [];
+  const head = document.createElement('div');
+  head.className = 'reactor-vitals-head';
+  const headTitle = document.createElement('span'); headTitle.textContent = 'LAST TURN';
+  const headBasis = document.createElement('span');
+  headBasis.className = 'reactor-vitals-basis'; headBasis.textContent = 'PROVIDER RECEIPT';
+  head.append(headTitle, headBasis); nodes.push(head);
+  for (const [label, value, cap] of rows) {
+    const row = document.createElement('div'); row.className = 'reactor-vital';
+    const name = document.createElement('em'); name.textContent = label;
+    const rail = document.createElement('i'); const fill = document.createElement('b');
+    fill.style.width = (value > 0 ? Math.min(100, Math.max(2, value / cap * 100)) : 0) + '%'; rail.appendChild(fill);
+    const out = document.createElement('output'); out.textContent = resourceNumber(value);
+    row.append(name, rail, out); nodes.push(row);
+  }
+  box.title = 'Latest provider-reported model usage. Bar length is a visual scale, not quota remaining.';
+  box.replaceChildren(...nodes); box.classList.add('on');
+}
+
+function renderReminders(items) {
+  const el = document.getElementById('reminders');
+  items = items || [];
+  if (!items.length) { el.style.display = 'none'; el.replaceChildren(); return; }
+  el.style.display = 'block';
+  const head = document.createElement('div');
+  head.id = 'reminders-head';
+  head.textContent = 'Reminders ';
+  const n = document.createElement('span');
+  const spoken = items.filter(i => i.status === 'spoken').length;
+  n.textContent = spoken
+    ? `— ${items.length} today, ${spoken} spoken`
+    : `— ${items.length} today`;
+  head.appendChild(n);
+  const rows = [head];
+  for (const i of items) {
+    const row = document.createElement('div');
+    const st = i.status === 'spoken' ? 'spoken'
+             : i.status === 'due' ? 'due' : 'set';
+    row.className = 'reminder ' + st;
+    const top = document.createElement('div');
+    top.className = 't-row';
+    const clock = document.createElement('span');
+    clock.className = 't-clock';
+    clock.textContent = i.clock || '';
+    const status = document.createElement('span');
+    status.className = 't-status';
+    status.textContent = st;
+    top.append(clock, status);
+    const label = document.createElement('div');
+    label.className = 't-label';
+    label.textContent = i.text || '';
+    row.append(top, label);
+    if (st === 'due' || st === 'spoken') {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'GOT IT';
+      btn.setAttribute('aria-label', 'Dismiss reminder');
+      btn.onclick = (ev) => {
+        ev.stopPropagation();
+        dismissReminder(i);
+      };
+      row.appendChild(btn);
+    }
+    rows.push(row);
+  }
+  el.replaceChildren(...rows);
+}
+
+function dismissReminder(item) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try {
+    ws.send(JSON.stringify({
+      t: 'reminder_dismiss',
+      at: item.at || '',
+      text: item.text || '',
+    }));
+  } catch {}
+}
+
+function renderBoard(items) {
+  const el = document.getElementById('board');
+  el.classList.remove('detail-open');
+  // Closed conversation turns leave the board the moment they close — the
+  // transcript below is already their record; a DONE card for a spoken
+  // reply is duplication, not status. The board is CARRIED work only.
+  items = (items || []).filter(i => !(i.t1 && i.kind === 'turn'));
+  if (!items.length) { el.style.display = 'none'; el.replaceChildren(); return; }
+  el.style.display = 'block';
+  const head = document.createElement('div');
+  head.id = 'board-head';
+  const live = items.filter(i => !i.t1).length;
+  const closed = items.filter(i => i.t1);
+  head.textContent = 'Tasks ';
+  const n = document.createElement('span');
+  n.textContent = `— ${live} live`;
+  head.appendChild(n);
+  if (closed.length) {
+    const clear = document.createElement('button');
+    clear.id = 'board-clear';
+    clear.type = 'button';
+    clear.textContent = 'clear';
+    clear.setAttribute('aria-label', 'Clear all finished tasks');
+    clear.onclick = (ev) => {
+      ev.stopPropagation();
+      for (const c of closed) dismissTask(el.querySelector(`.task[data-id="${c.id}"]`), c);
+    };
+    head.appendChild(clear);
+  }
+  const rows = [head];
+  for (const i of items.slice().reverse()) {   // newest on top
+    const row = document.createElement('div');
+    const open = !i.t1;
+    row.className = 'task ' + (
+      i.t1 ? (i.status === 'done' || i.status === 'delivered' ? 'ok' : 'dead')
+           : (TASK_LIVE.has(i.status) ? 'live' : 'wait'))
+      + (open ? ' open' : '');
+    row.dataset.t0 = i.t0;
+    row.dataset.id = i.id;
+    if (i.t1) row.dataset.t1 = i.t1;
+    const top = document.createElement('div');
+    top.className = 't-row';
+    const kind = document.createElement('span');
+    kind.className = 't-kind';
+    kind.textContent = i.t1
+      ? (row.className.includes('ok') ? '✓' : '✕')
+      : (TASK_KIND_GLYPH[i.kind] || '◆');
+    const status = document.createElement('span');
+    status.className = 't-status';
+    status.textContent = i.status;
+    const age = document.createElement('span');
+    age.className = 't-age';
+    age.textContent = taskAge((i.t1 || Date.now() / 1000) - i.t0);
+    top.append(kind, status, age);
+    if (i.t1) {
+      // Finished cards are the user's to dismiss — visible control, no
+      // waiting on the server's fade timer.
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 't-dismiss';
+      x.textContent = '✕';
+      x.setAttribute('aria-label', 'Dismiss this finished task');
+      x.onclick = (ev) => { ev.stopPropagation(); dismissTask(row, i); };
+      top.appendChild(x);
+    }
+    const label = document.createElement('div');
+    label.className = 't-label';
+    label.textContent = i.label;
+    row.append(top, label);
+    if (open) row.appendChild(stageBar(i.kind, i.status, false));
+    const hasReceipt = i.resource && i.resource.schema === 'vera.resource-vitals/v1';
+    if (hasReceipt || open) {
+      row.tabIndex = 0;
+      row.setAttribute('aria-haspopup', 'true');
+      row.title = hasReceipt
+        ? 'Open for the full resource receipt.'
+        : 'Open task controls.';
+      row.addEventListener('click', (ev) => {
+        if (ev.target.closest && ev.target.closest('.task-menu, .t-dismiss')) return;
+        toggleTaskMenu(row, i);
+      });
+      row.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault(); toggleTaskMenu(row, i);
+        }
+      });
+    }
+    rows.push(row);
+  }
+  el.replaceChildren(...rows);
+}
+
+function dismissTask(row, item) {
+  // Optimistic exit with a server verb behind it: the card animates out
+  // now, and task_dismiss removes it from the board snapshot so the next
+  // broadcast doesn't resurrect it. Open cards never take this path.
+  sendTaskAction('task_dismiss', item.id);
+  if (row) {
+    row.classList.add('dismissing');
+    setTimeout(() => row.remove(), 240);
+  }
+}
+
+function toggleTaskMenu(row, item) {
+  const existing = row.querySelector('.task-menu');
+  const board = row.closest('#board');
+  document.querySelectorAll('.task-menu').forEach((m) => {
+    if (m !== existing) m.remove();
+  });
+  if (existing) {
+    existing.remove();
+    if (board) board.classList.remove('detail-open');
+    return;
+  }
+  const menu = document.createElement('div');
+  menu.className = 'task-menu';
+  const detail = resourceDetail(item.resource);
+  if (detail) menu.appendChild(detail);
+  if (!item.t1) {
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'danger';
+    cancel.textContent = 'CANCEL';
+    cancel.setAttribute('aria-label', 'Cancel this task');
+    cancel.onclick = (ev) => {
+      ev.stopPropagation();
+      sendTaskAction('task_cancel', item.id);
+      menu.remove();
+      if (board) board.classList.remove('detail-open');
+    };
+    menu.appendChild(cancel);
+  }
+  const queued = !item.t1 && (item.status === 'jotted' || item.status === 'queued'
+              || item.status === 'notepad full');
+  if (queued) {
+    const up = document.createElement('button');
+    up.type = 'button';
+    up.textContent = 'RUN NEXT';
+    up.setAttribute('aria-label', 'Run this task next');
+    up.onclick = (ev) => {
+      ev.stopPropagation();
+      sendTaskAction('task_promote', item.id);
+      menu.remove();
+      if (board) board.classList.remove('detail-open');
+    };
+    menu.appendChild(up);
+  }
+  row.appendChild(menu);
+  if (board) board.classList.add('detail-open');
+}
+
+function sendTaskAction(kind, id) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try { ws.send(JSON.stringify({ t: kind, id: id })); } catch {}
+}
+
+/* open cards keep counting without rebuilding (rebuilds restart the sweep) */
+setInterval(() => {
+  for (const row of document.querySelectorAll('.task:not([data-t1]) .t-age')) {
+    const t0 = parseFloat(row.closest('.task').dataset.t0);
+    if (t0) row.textContent = taskAge(Date.now() / 1000 - t0);
+  }
+}, 1000);
 
 function connect() {
   ws = new WebSocket(`ws://127.0.0.1:${port}`);
   ws.onopen = () => {
     // The server replays state + cards + recent transcript on connect; start
     // clean so a reconnect doesn't duplicate what's already on screen.
+    // INPUT AUTHORITY NEVER SURVIVES A CONNECTION (Codex AMEND r3): a page
+    // that saw a voice server must not render voice copy after reconnecting
+    // to a text-mode session — unknown until THIS server states it.
+    earsPresent = null;
+    earsPhrase = null;
+    resetInputReadiness();
     window.VERA_TRANSCRIPT_RESET();
     document.getElementById('cards').replaceChildren();
+    renderBoard([]);
+    renderReminders([]);
+    // Input surfaces are unknown until THIS server's capabilities receipt.
+    connectedAt = Date.now();
+    caps = { typed: false, files: false, artifact_open: false };
+    setFileHandoffAvailable(false);
+    document.getElementById('dock-type').classList.remove('on');
+    document.getElementById('dock-drop-note').classList.remove('on');
   };
   ws.onmessage = (e) => {
     let m;
     try { m = JSON.parse(e.data); } catch { return; }
     if (m.t === 'state') setMode(m.v);
     else if (m.t === 'level') targetLevel = Math.max(0, Math.min(1, m.v));
-    else if (m.t === 'user' || m.t === 'jarvis') addLine(m.t, m.v);
+    else if (m.t === 'user' || m.t === 'jarvis') addLine(m.t, m.v, m.speaker, m.id);
     else if (m.t === 'card') {
       const c = m.v || {};
       const div = document.createElement('div');
@@ -491,11 +1784,135 @@ function connect() {
       const t = u.total || {}, l = u.last || {};
       document.getElementById('tokens-line').textContent =
         `TURN ${k(l.input_tokens || 0)}→${k(l.output_tokens || 0)} · Σ ${k((t.input_tokens || 0) + (t.output_tokens || 0))} TOK · ${t.turns || 0} TURNS`;
+      renderReactorVitals(u);
+    }
+    else if (m.t === 'tasks') renderBoard(m.v);
+    else if (m.t === 'reminders') renderReminders(m.v);
+    else if (m.t === 'capabilities') {
+      // Input surfaces render ONLY on this server receipt — a composer or
+      // drop veil that no handler backs would be a false affordance.
+      caps = m.v || {};
+      document.getElementById('dock-type').classList.toggle('on', !!caps.typed);
+      document.getElementById('dock-drop-note').classList.toggle('on', !!caps.files);
+      setFileHandoffAvailable(!!caps.files);
+    }
+    else if (m.t === 'file_received')
+      hudFlash(('SAVED — TELL HER WHAT TO DO NEXT: ' + (m.name || 'your file')).toUpperCase());
+    else if (m.t === 'file_rejected')
+      hudFlash(((m.name || 'that file') + ' — ' + (m.reason || 'refused')).toUpperCase());
+    else if (m.t === 'artifact_gone')
+      hudFlash('THAT FILE HAS CHANGED OR MOVED — LIST REFRESHES SHORTLY');
+    else if (m.t === 'stopped') showStopped();  // THE BRAKE landed
+    else if (m.t === 'ears') {
+      // Legacy stack receipt only. It never proves capture or wake readiness.
+      earsPresent = (m.v === true);
+      earsPhrase = (typeof m.phrase === 'string' && m.phrase)
+        ? String(m.phrase).slice(0, 24) : null;
+      renderInputReadiness();
+    }
+    else if (m.t === 'input_readiness') {
+      const r = (m.v && typeof m.v === 'object') ? m.v : {};
+      const phase = INPUT_PHASES.has(r.phase) ? r.phase : 'unknown';
+      inputReadiness = {
+        phase: phase,
+        ready: phase === 'wake_armed' && r.ready === true,
+        phrase: (typeof r.phrase === 'string' && r.phrase)
+          ? String(r.phrase).slice(0, 24) : null,
+      };
+      renderInputReadiness();
+    }
+    else if (m.t === 'reflection_readiness') {
+      const r = (m.v && typeof m.v === 'object') ? m.v : {};
+      const states = new Set(['paused', 'observing', 'ready']);
+      const admissions = new Set(['held', 'ready']);
+      const reasons = new Set([
+        'not_configured', 'weekly_disabled', 'admission_held',
+        'session_persistence_unverified', 'voice_evidence_held', 'jot_overflow', 'jot_io_held',
+        'cycle_empty', 'cycle_committed', 'cycle_unchanged',
+        'cycle_failed', 'cycle_stale', 'cycle_disabled'
+      ]);
+      const terminals = new Set([
+        'empty', 'committed', 'unchanged', 'failed', 'stale', 'disabled'
+      ]);
+      const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+      const state = states.has(r.state) ? r.state : 'paused';
+      const hot = admissions.has(r.hot) ? r.hot : 'held';
+      const weekly = admissions.has(r.weekly) ? r.weekly : 'held';
+      const reason = reasons.has(r.reason) ? r.reason : 'not_configured';
+      const hasSchedule = Number.isInteger(r.weekday) && r.weekday >= 0 && r.weekday <= 6
+        && Number.isInteger(r.hour) && r.hour >= 0 && r.hour <= 23;
+      const schedule = hasSchedule
+        ? ` · ${days[r.weekday]} ${String(r.hour).padStart(2, '0')}:00` : '';
+      const lastState = terminals.has(r.last_state) ? r.last_state : null;
+      const lastWeek = (typeof r.last_week === 'string'
+        && isSemanticIsoWeek(r.last_week))
+        ? r.last_week : null;
+      const terminal = (lastState && lastWeek)
+        ? ` · LAST ${lastWeek} ${lastState}` : '';
+      document.getElementById('reflection-readiness').textContent =
+        `CARE ${state} · ${reason} · HOT ${hot} · WEEKLY ${weekly}${schedule}${terminal}`.toUpperCase();
+    }
+    // VERA's panels ride the same bus — isolated: one bad panel dies alone.
+    // Snapshot frames are also cached: panel scripts load async, so one can
+    // register AFTER the connect replay passed — and the server only
+    // re-sends on change, which left slow first paints stale forever.
+    if (window.PANEL_LAST && window.PANEL_REPLAYABLE.has(m.t))
+      window.PANEL_LAST[m.t] = m;
+    for (const p of window.PANEL_LISTENERS || []) {
+      try { p.fn(m); } catch (err) { console.warn('panel', p.name, err); }
     }
   };
-  ws.onclose = () => { setMode('offline'); setTimeout(connect, 1500); };
+  ws.onclose = () => {
+    // Authority dies with the link (Codex AMEND r3) — offline claims nothing.
+    setFileHandoffAvailable(false);
+    document.getElementById('dock-drop-note').classList.remove('on');
+    earsPresent = null;
+    earsPhrase = null;
+    resetInputReadiness();
+    setMode('offline');
+    setTimeout(connect, 1500);
+  };
   ws.onerror = () => { try { ws.close(); } catch {} };
 }
+
+/* ---------------------------------------------------------- the brake */
+/* A face-tap while she is SPEAKING asks her to stop — the only word the
+   page may say back. No mic, no wake word: a person raising a hand. The
+   tap is armed only while speaking, so an idle click never fires. */
+function requestStop() {
+  if (mode !== 'speaking') return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try { ws.send(JSON.stringify({ t: 'stop' })); } catch {}
+}
+let _stopFlashTimer = null;
+function showStopped() {
+  let el = document.getElementById('stopped-flash');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'stopped-flash';
+    // A live region so a screen-reader user hears the brake landed, not just
+    // sighted users who see the pill. Created empty; text is set below so the
+    // assignment is a real content change aria-live announces.
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    document.body.appendChild(el);
+  }
+  el.textContent = 'STOPPED — go ahead';
+  el.classList.remove('show');
+  void el.offsetWidth;            // restart the fade
+  el.classList.add('show');
+  // Deterministic lifecycle in JS: clear after the same calm dwell regardless
+  // of animation. Under prefers-reduced-motion the CSS fade is disabled and
+  // `.show` alone would leave the pill stuck forever — removing the class here
+  // (and blanking the region) makes the receipt transient for EVERY user.
+  if (_stopFlashTimer) clearTimeout(_stopFlashTimer);
+  _stopFlashTimer = setTimeout(() => {
+    el.classList.remove('show');
+    el.textContent = '';   // reset so the next brake is a fresh aria-live change
+    _stopFlashTimer = null;
+  }, 1900);
+}
+/* Desktop brake omitted in the public demo. */
 
 /* ---------------------------------------------------------- demo mode */
 function runDemo() {
@@ -580,6 +1997,79 @@ if (DEMO) {
   runDemo();
 } else {
   connect();
+}
+</script>
+
+<!-- ================= VERA'S OWN PANELS ==================================
+     hud/panels/ is HER writable zone — the one face surface she may build
+     and upgrade herself. manifest.js names the panels; each loads isolated:
+     a broken panel logs and dies ALONE, the face and ears never notice. -->
+<script>
+'use strict';
+window.PANEL_LISTENERS = [];
+/* Frames the server replays on connect, cached in server-replay order so a
+   panel that registers late still receives its snapshot (capabilities
+   before continuity — panels gate affordances on capability truth).
+   Moment-toasts (continuity_receipt) are deliberately NOT here: replaying
+   an old receipt to a fresh panel would show a stale outcome. */
+window.PANEL_REPLAYABLE = new Set(['ears', 'input_readiness', 'reflection_readiness', 'capabilities',
+  'state', 'usage', 'tasks', 'reminders', 'continuity', 'artifacts']);
+window.PANEL_LAST = {};
+/* Panels stay render-and-listen, with ONE narrow exception: an explicit
+   owner click may ask the server to open a Recent-work item by opaque id,
+   or press one Current-moment control. The bridge allowlists exactly these
+   verbs, each with a bounded frame — panels still hold no network and no
+   other authority, and the server answers control presses with the
+   engine's own receipt. */
+window.VERA_PANEL_SEND = (kind, payload) => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  const p = payload || {};
+  let frame = null;
+  if (kind === 'artifact_open') {
+    frame = {
+      t: 'artifact_open',
+      id: String(p.id || '').slice(0, 64),
+      reveal: !!p.reveal,
+    };
+  } else if (kind === 'continuity_action') {
+    const action = String(p.action || '');
+    if (!['resolve', 'snooze', 'cancel', 'undo'].includes(action)) return false;
+    frame = {
+      t: 'continuity_action',
+      action: action,
+      id: String(p.id || '').slice(0, 64),
+      generation: Number(p.generation) || 1,
+    };
+  }
+  if (!frame) return false;
+  try { ws.send(JSON.stringify(frame)); return true; } catch { return false; }
+};
+/* Panels call: veraPanel('name', mount => { …build DOM in mount…;
+   return { onMessage: m => {...} };  // optional — rides the ws bus */
+window.veraPanel = function (name, setup) {
+  try {
+    const mount = document.createElement('div');
+    mount.className = 'vera-panel';
+    mount.dataset.panel = name;
+    document.getElementById('panel-dock').appendChild(mount);
+    const api = setup(mount) || {};
+    if (typeof api.onMessage === 'function') {
+      window.PANEL_LISTENERS.push({ name, fn: api.onMessage });
+      // Late registration replays the cached snapshots it missed.
+      for (const t of window.PANEL_REPLAYABLE) {
+        const m = window.PANEL_LAST[t];
+        if (m) { try { api.onMessage(m); } catch (err) { console.warn('panel', name, err); } }
+      }
+    }
+  } catch (err) {
+    console.warn('panel "' + name + '" failed to start:', err);
+  }
+};
+for (const name of window.VERA_PANELS || []) {
+  const s = document.createElement('script');
+  s.src = 'panels/' + name;
+  s.onerror = () => console.warn('panel failed to load:', name);
+  document.body.appendChild(s);
 }
 </script>
 <script src="demo_panels.js"></script>
